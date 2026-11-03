@@ -1,0 +1,18 @@
+#!name = 字节净化
+#!desc = 按域名精细拦截字节系广告（蛋花 / 番茄 / 头条 / 抖音内嵌），屏蔽开屏 / 激励 / 前贴片及埋点，兼容短剧播放。
+#!author = ByteValley
+#!homepage = https://github.com/ByteValley/NetTool
+#!system = ios
+#!category = 去广告
+
+# 由 Egern 模块转换而来，原作者：ByteValley
+# 原链接：https://raw.githubusercontent.com/ByteValley/NetTool/main/Egern/Module/Purification/ByteDance.yaml
+# 转换说明：原模块只有 1 条规则，没有脚本、不用 MITM。Egern 的 and/or 嵌套规则
+# 用 Surge 的逻辑规则 AND / OR 原样翻译，策略 REJECT-DROP 不变。
+# 注意：这条规则很窄，只有同时满足下面两个条件才拦截——
+# ① 域名属于 douyin.com / zijieapi.com / snssdk.com / toutiaoapi.com / fqnovel.com / fqnovelvod.com
+# ② 主机名里含有 -lf / -lq / -hl
+# 也就是说它不是全量拦字节广告，而是只拦带这几个标记的请求，好处是不容易误伤短剧播放。
+
+[Rule]
+AND,((OR,((DOMAIN-SUFFIX,douyin.com),(DOMAIN-SUFFIX,zijieapi.com),(DOMAIN-SUFFIX,snssdk.com),(DOMAIN-SUFFIX,toutiaoapi.com),(DOMAIN-SUFFIX,fqnovel.com),(DOMAIN-SUFFIX,fqnovelvod.com))),(OR,((DOMAIN-KEYWORD,-lf),(DOMAIN-KEYWORD,-lq),(DOMAIN-KEYWORD,-hl)))),REJECT-DROP
