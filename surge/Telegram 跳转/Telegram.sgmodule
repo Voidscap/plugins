@@ -1,0 +1,20 @@
+#!name = Telegram 跳转
+#!desc = 将 t.me / telegram.me 链接重定向到你选择的 Telegram 客户端
+#!author = panda𝕏
+#!homepage = https://github.com/IBL3ND/module
+#!system = ios
+#!category = Telegram
+
+# 由 Egern 模块转换而来，原作者：panda𝕏
+# 原链接：https://raw.githubusercontent.com/IBL3ND/module/refs/heads/main/Telegram.yaml
+# 转换说明：不像上一个纯规则插件那样只换文件头就能用，这个带脚本，
+# Egern 的 ctx / export default 写法 Surge 不认，所以 TgRedirect.js 已按 Surge 的
+# $request / $argument / $done 重写，跳转逻辑原样保留。
+# 客户端选择：把下面 argument=CLIENT= 后面的值改成 Nagram / Swiftgram / Turrit /
+# iMe / Nicegram / Lingogram / Regram；默认 Telegram（官方版）是不跳转的。
+
+[MITM]
+hostname = %APPEND% t.me, telegram.me
+
+[Script]
+Telegram 跳转 = type=http-request,pattern=^https?://(t\.me|telegram\.me)/.+,script-path=https://raw.githubusercontent.com/Voidscap/plugins/main/surge/Telegram%20%E8%B7%B3%E8%BD%AC/TgRedirect.js,requires-body=false,timeout=10,argument=CLIENT=Telegram
