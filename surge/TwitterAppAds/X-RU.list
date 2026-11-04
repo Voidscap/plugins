@@ -1,0 +1,39 @@
+# X (Twitter) 规则集 · 俄罗斯节点版
+# 用途：X 相关域名走代理；广告 / 统计域名直接拦截
+# 依据：用户 2026-11-04 截图里 X App 的实际请求（ads-api.x.com、api.x.com）
+#       + 已知 X / Twitter 域名
+#
+# 用法 1（推荐）：先在 Surge 里建一个名叫“俄罗斯”的策略组（select 类型），
+#   把订阅里的俄罗斯节点放进去，再按下面方法添加本规则集
+#   https://raw.githubusercontent.com/Voidscap/plugins/main/surge/TwitterAppAds/X-RU.list
+# 用法 2：写进配置文件 [Rule] 段
+#   RULE-SET,https://raw.githubusercontent.com/Voidscap/plugins/main/surge/TwitterAppAds/X-RU.list,俄罗斯
+# 注意：规则里的 PROXY 是 Surge 默认代理组；想走指定节点组（比如截图里的
+# 香港 S04），把 PROXY 换成那个策略组的名字，或用用法 2 并把最后的 PROXY
+# 换成策略组名。
+#
+# 效果说明（实话）：ads-api.x.com 是 X 的广告接口，拦掉它能减少广告加载和
+# 广告统计上报；但时间线里的推广推文是跟正常推文一起从 api.x.com 下发的，
+# 单靠规则集拦不掉，这一点跟之前那个 MITM 模块的结论一样。
+
+# 广告 / 统计域名，拦截
+DOMAIN-SUFFIX,ads-api.x.com,REJECT
+DOMAIN-SUFFIX,ads-api.twitter.com,REJECT
+DOMAIN-SUFFIX,ads-twitter.com,REJECT
+DOMAIN-SUFFIX,analytics.twitter.com,REJECT
+DOMAIN-SUFFIX,analytics.x.com,REJECT
+DOMAIN-SUFFIX,scribe.twitter.com,REJECT
+DOMAIN-SUFFIX,syndication.twitter.com,REJECT
+DOMAIN-SUFFIX,syndication-o.twitter.com,REJECT
+DOMAIN-SUFFIX,p.twitter.com,REJECT
+DOMAIN-SUFFIX,urls.api.twitter.com,REJECT
+
+# X 主站 / API / 图片 CDN / 短链，走代理
+DOMAIN-SUFFIX,x.com,俄罗斯
+DOMAIN-SUFFIX,twitter.com,俄罗斯
+DOMAIN-SUFFIX,api.x.com,俄罗斯
+DOMAIN-SUFFIX,api.twitter.com,俄罗斯
+DOMAIN-SUFFIX,twimg.com,俄罗斯
+DOMAIN-SUFFIX,t.co,俄罗斯
+DOMAIN-SUFFIX,grok.com,俄罗斯
+DOMAIN-SUFFIX,x.ai,俄罗斯
