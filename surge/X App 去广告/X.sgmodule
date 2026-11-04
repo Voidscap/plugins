@@ -32,7 +32,7 @@ DOMAIN-SUFFIX,syndication-o.twitter.com,REJECT
 DOMAIN-SUFFIX,urls.api.twitter.com,REJECT
 
 [Script]
-X App 去广告 = type=http-response,pattern=^https?:\/\/((api\.x\.com|api\.twitter\.com)\/graphql|x\.com\/i\/api\/graphql)\/[^\/]+\/(HomeTimeline|HomeLatestTimeline|TweetDetail),requires-body=true,max-size=-1,script-path=https://raw.githubusercontent.com/Voidscap/plugins/main/surge/X%20App%20%E5%8E%BB%E5%B9%BF%E5%91%8A/X_ads.js
+X App 去广告 = type=http-response,pattern=^https?:\/\/((api\.x\.com|api\.twitter\.com)\/graphql|x\.com\/i\/api\/graphql)\/[^\/]+\/(HomeTimeline|HomeLatestTimeline|TweetDetail),requires-body=true,max-size=-1,script-path=https://raw.githubusercontent.com/Voidscap/plugins/main/surge/TwitterAppAds/X_ads.js
 
 [MITM]
 hostname = %APPEND% api.x.com, api.twitter.com, x.com

@@ -1,0 +1,38 @@
+#!name=X (Twitter) App 去广告
+#!desc=原生 X App 时间线去广告（改编自网页版模块，未在真机实测）
+#!author=奶思 fmz200（改编）
+#!homepage=https://github.com/fmz200/wool_scripts
+#!system=ios
+#!category=去广告
+
+# 原生 App 版，改编自奶思 fmz200 的网页版模块 XWebAds
+# 原模块：https://raw.githubusercontent.com/fmz200/wool_scripts/main/Surge/module/XWebAds.module
+# 原脚本：https://raw.githubusercontent.com/fmz200/wool_scripts/main/Scripts/X/X_ads.js（2026-06-17 更新）
+# 改编说明：
+# - 脚本 X_ads.js 原样复制，未改动。它本身不认域名，只看 URL 里有没有
+#   /HomeTimeline、/HomeLatestTimeline、/TweetDetail，再按 promoted-tweet /
+#   promotedMetadata 过滤推广条目，所以理论上对 App 也适用。
+# - 改的只有两处：匹配地址从 x.com 网页版改成 App 用的 api.x.com / api.twitter.com
+#   的 GraphQL 接口（同时保留 x.com，网页版也能用）；MITM 主机名相应改成
+#   api.x.com、api.twitter.com、x.com。
+# - 另加了 fmz200 的 Twitter.sgmodule 里 6 条广告域名拦截（ads-twitter.com 等），
+#   属于锦上添花，拦不掉时间线里的推广，真正去推广靠脚本。
+# ⚠️ 未实测警告：只做了语法检查和逐项对照，没在真机 X App 上跑过。
+# X App 可能对 api.twitter.com / api.x.com 做证书固定（pinning），MITM 一开
+# App 可能直接加载不出来或闪退。如果出现这种情况，先把本模块关掉，
+# 再把 MITM 里 api.x.com / api.twitter.com 排除，改用网页版模块
+# （fmz200 的 XWebAds，x.com 那个）+“添加到主屏幕”的办法。
+
+[Rule]
+DOMAIN-SUFFIX,ads-twitter.com,REJECT
+DOMAIN-SUFFIX,p.twitter.com,REJECT
+DOMAIN-SUFFIX,scribe.twitter.com,REJECT
+DOMAIN-SUFFIX,syndication.twitter.com,REJECT
+DOMAIN-SUFFIX,syndication-o.twitter.com,REJECT
+DOMAIN-SUFFIX,urls.api.twitter.com,REJECT
+
+[Script]
+X App 去广告 = type=http-response,pattern=^https?:\/\/((api\.x\.com|api\.twitter\.com)\/graphql|x\.com\/i\/api\/graphql)\/[^\/]+\/(HomeTimeline|HomeLatestTimeline|TweetDetail),requires-body=true,max-size=-1,script-path=https://raw.githubusercontent.com/Voidscap/plugins/main/surge/TwitterAppAds/X_ads.js
+
+[MITM]
+hostname = %APPEND% api.x.com, api.twitter.com, x.com
