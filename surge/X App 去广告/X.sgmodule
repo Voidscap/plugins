@@ -1,9 +1,9 @@
-#!name = X (Twitter) App 去广告
-#!desc = 原生 X App 时间线去广告（改编自网页版模块，未在真机实测）
-#!author = 奶思 fmz200（改编）
-#!homepage = https://github.com/fmz200/wool_scripts
-#!system = ios
-#!category = 去广告
+#!name=X (Twitter) App 去广告
+#!desc=原生 X App 时间线去广告（改编自网页版模块，未在真机实测）
+#!author=奶思 fmz200（改编）
+#!homepage=https://github.com/fmz200/wool_scripts
+#!system=ios
+#!category=去广告
 
 # 原生 App 版，改编自奶思 fmz200 的网页版模块 XWebAds
 # 原模块：https://raw.githubusercontent.com/fmz200/wool_scripts/main/Surge/module/XWebAds.module
@@ -32,7 +32,7 @@ DOMAIN-SUFFIX,syndication-o.twitter.com,REJECT
 DOMAIN-SUFFIX,urls.api.twitter.com,REJECT
 
 [Script]
-X App 去广告 = type=http-response,pattern=^https?:\/\/((api\.x\.com|api\.twitter\.com)\/graphql|x\.com\/i\/api\/graphql)\/[^\/]+\/(HomeTimeline|HomeLatestTimeline|TweetDetail),requires-body=1,max-size=-1,script-path=https://raw.githubusercontent.com/Voidscap/plugins/main/surge/X%20App%20%E5%8E%BB%E5%B9%BF%E5%91%8A/X_ads.js
+X App 去广告 = type=http-response,pattern=^https?:\/\/((api\.x\.com|api\.twitter\.com)\/graphql|x\.com\/i\/api\/graphql)\/[^\/]+\/(HomeTimeline|HomeLatestTimeline|TweetDetail),requires-body=true,max-size=-1,script-path=https://raw.githubusercontent.com/Voidscap/plugins/main/surge/X%20App%20%E5%8E%BB%E5%B9%BF%E5%91%8A/X_ads.js
 
 [MITM]
 hostname = %APPEND% api.x.com, api.twitter.com, x.com
