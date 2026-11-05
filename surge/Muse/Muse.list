@@ -15,6 +15,11 @@ DOMAIN-SUFFIX,metaaivm.com,PROXY
 DOMAIN-SUFFIX,meta.com,PROXY
 DOMAIN-SUFFIX,metaaiusercontent.com,PROXY
 
+# Meta 开发者 / Llama（2026-11-05 自 yfamilys MetaAI.list 补入）
+DOMAIN-SUFFIX,atmeta.com,PROXY
+DOMAIN-SUFFIX,llama.com,PROXY
+DOMAIN-SUFFIX,llamameta.net,PROXY
+
 # Instagram（主站、API、图片 CDN）
 DOMAIN-SUFFIX,instagram.com,PROXY
 DOMAIN-SUFFIX,cdninstagram.com,PROXY

@@ -29,6 +29,16 @@ rules:
   - domain_suffix:
       match: metaaiusercontent.com
     policy: Proxy
+  # Meta 开发者 / Llama（2026-11-05 自 yfamilys MetaAI.list 补入）
+  - domain_suffix:
+      match: atmeta.com
+    policy: Proxy
+  - domain_suffix:
+      match: llama.com
+    policy: Proxy
+  - domain_suffix:
+      match: llamameta.net
+    policy: Proxy
   # Instagram
   - domain_suffix:
       match: instagram.com
