@@ -3,8 +3,10 @@
 # Surge 版：https://raw.githubusercontent.com/Voidscap/plugins/main/surge/Muse/Muse.list
 # 用法：Egern → 模块 → 添加模块，粘贴 raw 链接
 #   https://raw.githubusercontent.com/Voidscap/plugins/main/egern/Muse/Muse.yaml
-# 规则说明：Muse + Instagram + Facebook 的域名全部走代理（PROXY）。
-# 注意：Egern 里 PROXY 就是默认代理组；想走指定策略组，把 PROXY 换成组名。
+# 规则说明：Muse + Instagram + Facebook 的域名全部走代理（Proxy）。
+# 格式说明：Egern 官方格式是结构化 YAML（domain_suffix + match + policy），
+# 不是 Surge 的 "DOMAIN-SUFFIX,域名,PROXY" 字符串写法；这里用的是官方格式。
+# 注意：Egern 里 Proxy 就是默认代理组；想走指定策略组，把 Proxy 换成组名。
 name: Muse 分流
 description: Muse、Instagram、Facebook 的域名走代理
 author: Voidscap
@@ -12,23 +14,57 @@ homepage: https://github.com/Voidscap/plugins
 
 rules:
   # Muse / Meta AI
-  - DOMAIN-SUFFIX,muse.ai,PROXY
-  - DOMAIN-SUFFIX,meta.ai,PROXY
-  - DOMAIN-SUFFIX,metaaivm.com,PROXY
-  - DOMAIN-SUFFIX,meta.com,PROXY
-  - DOMAIN-SUFFIX,metaaiusercontent.com,PROXY
+  - domain_suffix:
+      match: muse.ai
+    policy: Proxy
+  - domain_suffix:
+      match: meta.ai
+    policy: Proxy
+  - domain_suffix:
+      match: metaaivm.com
+    policy: Proxy
+  - domain_suffix:
+      match: meta.com
+    policy: Proxy
+  - domain_suffix:
+      match: metaaiusercontent.com
+    policy: Proxy
   # Instagram
-  - DOMAIN-SUFFIX,instagram.com,PROXY
-  - DOMAIN-SUFFIX,cdninstagram.com,PROXY
-  - DOMAIN-SUFFIX,instagramstatic-a.akamaihd.net,PROXY
+  - domain_suffix:
+      match: instagram.com
+    policy: Proxy
+  - domain_suffix:
+      match: cdninstagram.com
+    policy: Proxy
+  - domain_suffix:
+      match: instagramstatic-a.akamaihd.net
+    policy: Proxy
   # Facebook
-  - DOMAIN-SUFFIX,facebook.com,PROXY
-  - DOMAIN-SUFFIX,facebook.net,PROXY
-  - DOMAIN-SUFFIX,fb.com,PROXY
-  - DOMAIN-SUFFIX,fb.me,PROXY
-  - DOMAIN-SUFFIX,fb.watch,PROXY
-  - DOMAIN-SUFFIX,fb.gg,PROXY
-  - DOMAIN-SUFFIX,messenger.com,PROXY
-  - DOMAIN-SUFFIX,fbsbx.com,PROXY
+  - domain_suffix:
+      match: facebook.com
+    policy: Proxy
+  - domain_suffix:
+      match: facebook.net
+    policy: Proxy
+  - domain_suffix:
+      match: fb.com
+    policy: Proxy
+  - domain_suffix:
+      match: fb.me
+    policy: Proxy
+  - domain_suffix:
+      match: fb.watch
+    policy: Proxy
+  - domain_suffix:
+      match: fb.gg
+    policy: Proxy
+  - domain_suffix:
+      match: messenger.com
+    policy: Proxy
+  - domain_suffix:
+      match: fbsbx.com
+    policy: Proxy
   # Meta 共用 CDN
-  - DOMAIN-SUFFIX,fbcdn.net,PROXY
+  - domain_suffix:
+      match: fbcdn.net
+    policy: Proxy

@@ -12,4 +12,4 @@ Muse、Instagram、Facebook 的域名走代理，共 17 条规则。
 https://raw.githubusercontent.com/Voidscap/plugins/main/egern/Muse/Muse.yaml
 ```
 
-规则里的 `PROXY` 是 Egern 默认代理组；想走指定策略组，把 `PROXY` 换成组名。
+规则里的 `Proxy` 是 Egern 默认代理组；想走指定策略组，把 `Proxy` 换成组名。
