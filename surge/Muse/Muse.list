@@ -1,0 +1,34 @@
+# Muse 分流规则集（Surge）
+# 包含：Muse + Instagram + Facebook，全部走代理
+#
+# 用法：Surge → 配置 → 规则集 → 添加规则集，粘贴 raw 链接
+#   https://raw.githubusercontent.com/Voidscap/plugins/main/surge/Muse/Muse.list
+# 或写进配置文件 [Rule] 段：
+#   RULE-SET,https://raw.githubusercontent.com/Voidscap/plugins/main/surge/Muse/Muse.list,PROXY
+# 注意：规则里的 PROXY 是 Surge 默认代理组；想走指定策略组（比如“香港节点”），
+# 把 PROXY 换成那个策略组的名字。
+
+# Muse / Meta AI（用户提供）
+DOMAIN-SUFFIX,muse.ai,PROXY
+DOMAIN-SUFFIX,meta.ai,PROXY
+DOMAIN-SUFFIX,metaaivm.com,PROXY
+DOMAIN-SUFFIX,meta.com,PROXY
+DOMAIN-SUFFIX,metaaiusercontent.com,PROXY
+
+# Instagram（主站、API、图片 CDN）
+DOMAIN-SUFFIX,instagram.com,PROXY
+DOMAIN-SUFFIX,cdninstagram.com,PROXY
+DOMAIN-SUFFIX,instagramstatic-a.akamaihd.net,PROXY
+
+# Facebook（主站、短链、Messenger、视频）
+DOMAIN-SUFFIX,facebook.com,PROXY
+DOMAIN-SUFFIX,facebook.net,PROXY
+DOMAIN-SUFFIX,fb.com,PROXY
+DOMAIN-SUFFIX,fb.me,PROXY
+DOMAIN-SUFFIX,fb.watch,PROXY
+DOMAIN-SUFFIX,fb.gg,PROXY
+DOMAIN-SUFFIX,messenger.com,PROXY
+DOMAIN-SUFFIX,fbsbx.com,PROXY
+
+# Meta 共用 CDN（Instagram / Facebook 的图片视频都走这里）
+DOMAIN-SUFFIX,fbcdn.net,PROXY
