@@ -3,37 +3,38 @@
 #
 # 用法：Surge → 配置 → 规则集 → 添加规则集，粘贴 raw 链接
 #   https://raw.githubusercontent.com/Voidscap/plugins/main/surge/Muse/Muse.list
+# 然后选一个策略组（比如 AIGC 或 Proxy），整个规则集都走这个策略。
 # 或写进配置文件 [Rule] 段：
-#   RULE-SET,https://raw.githubusercontent.com/Voidscap/plugins/main/surge/Muse/Muse.list,PROXY
-# 注意：规则里的 PROXY 是 Surge 默认代理组；想走指定策略组（比如“香港节点”），
-# 把 PROXY 换成那个策略组的名字。
+#   RULE-SET,https://raw.githubusercontent.com/Voidscap/plugins/main/surge/Muse/Muse.list,AIGC
+# 注意：按 Surge 官方格式，规则集文件里每行不能带策略，策略在引用时指定；
+# 所以这份文件里不写 PROXY，引用时选什么策略就走什么。
 
 # Muse / Meta AI（用户提供）
-DOMAIN-SUFFIX,muse.ai,PROXY
-DOMAIN-SUFFIX,meta.ai,PROXY
-DOMAIN-SUFFIX,metaaivm.com,PROXY
-DOMAIN-SUFFIX,meta.com,PROXY
-DOMAIN-SUFFIX,metaaiusercontent.com,PROXY
+DOMAIN-SUFFIX,muse.ai
+DOMAIN-SUFFIX,meta.ai
+DOMAIN-SUFFIX,metaaivm.com
+DOMAIN-SUFFIX,meta.com
+DOMAIN-SUFFIX,metaaiusercontent.com
 
 # Meta 开发者 / Llama（2026-11-05 自 yfamilys MetaAI.list 补入）
-DOMAIN-SUFFIX,atmeta.com,PROXY
-DOMAIN-SUFFIX,llama.com,PROXY
-DOMAIN-SUFFIX,llamameta.net,PROXY
+DOMAIN-SUFFIX,atmeta.com
+DOMAIN-SUFFIX,llama.com
+DOMAIN-SUFFIX,llamameta.net
 
 # Instagram（主站、API、图片 CDN）
-DOMAIN-SUFFIX,instagram.com,PROXY
-DOMAIN-SUFFIX,cdninstagram.com,PROXY
-DOMAIN-SUFFIX,instagramstatic-a.akamaihd.net,PROXY
+DOMAIN-SUFFIX,instagram.com
+DOMAIN-SUFFIX,cdninstagram.com
+DOMAIN-SUFFIX,instagramstatic-a.akamaihd.net
 
 # Facebook（主站、短链、Messenger、视频）
-DOMAIN-SUFFIX,facebook.com,PROXY
-DOMAIN-SUFFIX,facebook.net,PROXY
-DOMAIN-SUFFIX,fb.com,PROXY
-DOMAIN-SUFFIX,fb.me,PROXY
-DOMAIN-SUFFIX,fb.watch,PROXY
-DOMAIN-SUFFIX,fb.gg,PROXY
-DOMAIN-SUFFIX,messenger.com,PROXY
-DOMAIN-SUFFIX,fbsbx.com,PROXY
+DOMAIN-SUFFIX,facebook.com
+DOMAIN-SUFFIX,facebook.net
+DOMAIN-SUFFIX,fb.com
+DOMAIN-SUFFIX,fb.me
+DOMAIN-SUFFIX,fb.watch
+DOMAIN-SUFFIX,fb.gg
+DOMAIN-SUFFIX,messenger.com
+DOMAIN-SUFFIX,fbsbx.com
 
 # Meta 共用 CDN（Instagram / Facebook 的图片视频都走这里）
-DOMAIN-SUFFIX,fbcdn.net,PROXY
+DOMAIN-SUFFIX,fbcdn.net

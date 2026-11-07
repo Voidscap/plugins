@@ -1,38 +1,30 @@
-# X (Twitter) 规则集
-# 用途：X 相关域名走代理；广告 / 统计域名直接拦截
+# X (Twitter) 广告拦截规则集
+# 用途：X 的广告 / 统计域名直接拦截
 # 依据：用户 2026-11-04 截图里 X App 的实际请求（ads-api.x.com、api.x.com）
 #       + 已知 X / Twitter 域名
 #
-# 用法 1（推荐）：Surge → 配置 → 规则集 → 添加规则集，粘贴 raw 链接
+# 用法：Surge → 配置 → 规则集 → 添加规则集，粘贴 raw 链接
 #   https://raw.githubusercontent.com/Voidscap/plugins/main/surge/TwitterAppAds/X.list
-# 用法 2：写进配置文件 [Rule] 段
-#   RULE-SET,https://raw.githubusercontent.com/Voidscap/plugins/main/surge/TwitterAppAds/X.list,PROXY
-# 注意：规则里的 PROXY 是 Surge 默认代理组；想走指定节点组（比如截图里的
-# 香港 S04），把 PROXY 换成那个策略组的名字，或用用法 2 并把最后的 PROXY
-# 换成策略组名。
+# 策略选 REJECT，并把它放在 X / Twitter 规则的前面（规则从上往下，先命中先生效）。
+# 或写进配置文件 [Rule] 段：
+#   RULE-SET,https://raw.githubusercontent.com/Voidscap/plugins/main/surge/TwitterAppAds/X.list,REJECT
+#
+# 注意：这份文件现在只留了拦截的 10 个域名；X 主站那些域名不用写在这里，
+# 它们已经有 Twitter.list 走 X 组了（或走 FINAL 的 Proxy），写进来也是重复。
+# 按 Surge 官方格式，规则集文件里每行不能带策略，策略在引用时指定。
 #
 # 效果说明（实话）：ads-api.x.com 是 X 的广告接口，拦掉它能减少广告加载和
 # 广告统计上报；但时间线里的推广推文是跟正常推文一起从 api.x.com 下发的，
 # 单靠规则集拦不掉，这一点跟之前那个 MITM 模块的结论一样。
 
 # 广告 / 统计域名，拦截
-DOMAIN-SUFFIX,ads-api.x.com,REJECT
-DOMAIN-SUFFIX,ads-api.twitter.com,REJECT
-DOMAIN-SUFFIX,ads-twitter.com,REJECT
-DOMAIN-SUFFIX,analytics.twitter.com,REJECT
-DOMAIN-SUFFIX,analytics.x.com,REJECT
-DOMAIN-SUFFIX,scribe.twitter.com,REJECT
-DOMAIN-SUFFIX,syndication.twitter.com,REJECT
-DOMAIN-SUFFIX,syndication-o.twitter.com,REJECT
-DOMAIN-SUFFIX,p.twitter.com,REJECT
-DOMAIN-SUFFIX,urls.api.twitter.com,REJECT
-
-# X 主站 / API / 图片 CDN / 短链，走代理
-DOMAIN-SUFFIX,x.com,PROXY
-DOMAIN-SUFFIX,twitter.com,PROXY
-DOMAIN-SUFFIX,api.x.com,PROXY
-DOMAIN-SUFFIX,api.twitter.com,PROXY
-DOMAIN-SUFFIX,twimg.com,PROXY
-DOMAIN-SUFFIX,t.co,PROXY
-DOMAIN-SUFFIX,grok.com,PROXY
-DOMAIN-SUFFIX,x.ai,PROXY
+DOMAIN-SUFFIX,ads-api.x.com
+DOMAIN-SUFFIX,ads-api.twitter.com
+DOMAIN-SUFFIX,ads-twitter.com
+DOMAIN-SUFFIX,analytics.twitter.com
+DOMAIN-SUFFIX,analytics.x.com
+DOMAIN-SUFFIX,scribe.twitter.com
+DOMAIN-SUFFIX,syndication.twitter.com
+DOMAIN-SUFFIX,syndication-o.twitter.com
+DOMAIN-SUFFIX,p.twitter.com
+DOMAIN-SUFFIX,urls.api.twitter.com
