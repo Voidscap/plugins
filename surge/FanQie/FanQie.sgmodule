@@ -1,0 +1,39 @@
+#!name=FanQie去广告
+#!desc=拦截番茄小说广告、激励广告、日志上报与短链跳转，保留番茄 API、封面与短剧播放
+#!author=Voidscap
+#!homepage=https://github.com/Voidscap/plugins
+#!system=ios
+#!category=去广告
+
+# 番茄小说去广告（Surge 模块，纯规则，无脚本、不用 MITM）
+# 规则来源：掌柜的手机实测（match_rule 验证）+ DSH 经 Surge MCP 整理，2026-11-12
+# 修复说明：不再用 -lf / -lq / -hl 后缀总闸（会误杀 api*-normal-*.fqnovel.com 主接口）
+# 只拦日志 / 监控 / 短链 / 激励广告，保留番茄 API、封面（fqnovelpic / novel.byteimg）、短剧（fqnovelvod）
+# 注意：与仓库里的「字节净化」模块不同，那个模块只有 1 条规则，正是用 -lf / -lq / -hl 总闸；
+# 两个模块不要同时开，否则总闸还是会误杀番茄主接口。
+
+[Rule]
+# 番茄已验证域名拦截（手机实测 match_rule，REJECT）
+DOMAIN,i-lq.snssdk.com,REJECT
+DOMAIN,security-lq.snssdk.com,REJECT
+DOMAIN,tnc3-alisc1.snssdk.com,REJECT
+DOMAIN,tnc3-aliec2.snssdk.com,REJECT
+DOMAIN,vas-lf-x.snssdk.com,REJECT
+DOMAIN,sf3-ttcdn-tos.pstatp.com,REJECT
+DOMAIN-SUFFIX,byteorge.com,REJECT
+DOMAIN-SUFFIX,bytegoofy.com,REJECT
+DOMAIN-SUFFIX,ecombdapi.com,REJECT
+DOMAIN-SUFFIX,ecombdimg.com,REJECT
+DOMAIN,gurd.snssdk.com,REJECT
+# 番茄精细拦截（DSH 经 Surge MCP 添加，2026-11-12，REJECT-DROP）
+DOMAIN-SUFFIX,ugsdk.cn,REJECT-DROP
+DOMAIN-SUFFIX,bdurl.net,REJECT-DROP
+DOMAIN-SUFFIX,zjurl.cn,REJECT-DROP
+DOMAIN-SUFFIX,byteurl.cn,REJECT-DROP
+DOMAIN-KEYWORD,-reward-,REJECT-DROP
+DOMAIN-WILDCARD,log*-applog*.fqnovel.com,REJECT-DROP
+DOMAIN-WILDCARD,rtlog*-applog*.fqnovel.com,REJECT-DROP
+DOMAIN-WILDCARD,mon*-misc*.fqnovel.com,REJECT-DROP
+AND,((DOMAIN-SUFFIX,bytegecko.com),(DOMAIN-KEYWORD,-tos)),REJECT-DROP
+AND,((OR,((DOMAIN-KEYWORD,-bjlgy),(DOMAIN-KEYWORD,frontier-aweme))),(DOMAIN-SUFFIX,snssdk.com)),REJECT-DROP
+AND,((DOMAIN-SUFFIX,douyin.com),(DOMAIN-KEYWORD,-open-lf)),REJECT-DROP
