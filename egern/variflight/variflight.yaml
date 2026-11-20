@@ -1,0 +1,96 @@
+name: "飞常准航班"
+
+description: "飞常准小组件，数据来自飞常准 app 的 MCP 网关，需要在模块设置里填自己的 MCP Key（飞常准 app「MCP 连接」页生成）。三种模式：航班动态（指定航班号今天的状态、登机口、值机柜台），机场大屏（指定机场的实时出港/进港航班列表），机场天气（指定机场实况与天气影响）。每次刷新调用一次接口。"
+
+author: "Voidscap"
+
+homepage: "https://github.com/Voidscap/plugins"
+
+icon: "airplane"
+
+
+# 在模块设置页里会自动生成对应的输入框 / 选择器。
+
+# 留空表示使用脚本内置默认值。
+
+env_schema:
+
+  API_KEY:
+
+    name: "MCP Key"
+
+    description: "飞常准 app「MCP 连接」页的 MCP Key（sk-user- 开头），在 app 里点「复制 Key」后粘贴到这里。必填，没有 Key 查不了。"
+
+  MODE:
+
+    name: "显示模式"
+
+    description: "航班动态：显示「航班号」今天的状态；机场大屏：显示「机场三字码」的实时出港/进港航班；机场天气：显示「机场三字码」的实况天气。"
+
+    options:
+
+      - "航班动态"
+
+      - "机场大屏"
+
+      - "机场天气"
+
+  FLIGHT:
+
+    name: "航班号"
+
+    description: "含航司二字码，如 MU5102、CA1832。航班动态模式用。"
+
+    default_value: "MU5102"
+
+  AIRPORT:
+
+    name: "机场三字码"
+
+    description: "如 SHA 上海虹桥、PEK 北京首都、CAN 广州白云。机场大屏 / 机场天气模式用。"
+
+    default_value: "SHA"
+
+  DIRECTION:
+
+    name: "大屏方向"
+
+    description: "出港：从该机场出发的航班；进港：到达该机场的航班。机场大屏模式用。"
+
+    options:
+
+      - "出港"
+
+      - "进港"
+
+  REFRESH:
+
+    name: "刷新间隔（分钟）"
+
+    description: "系统会根据此值建议刷新时间，实际刷新频率由 iOS 决定。"
+
+    options:
+
+      - "10"
+
+      - "15"
+
+      - "30"
+
+      - "60"
+
+
+scriptings:
+
+  - generic:
+
+      name: "飞常准航班"
+
+      script_url: "https://raw.githubusercontent.com/Voidscap/plugins/main/egern/variflight/variflight.js"
+
+      timeout: 60
+
+
+widgets:
+
+  - name: "飞常准航班"
