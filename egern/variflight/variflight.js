@@ -18,6 +18,8 @@ const BLUE = '#0A84FF';
 const BG = { light: '#FFFFFF', dark: '#1C1C1E' };
 const CARD = { light: '#F2F2F7', dark: '#2C2C2E' };
 const PLANE = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%230A84FF' d='M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/></svg>";
+const ARROW_OUT = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 18L18 6M10 6h8v8' stroke='%230A84FF' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>";
+const ARROW_IN = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 6l12 12M18 10v8h-8' stroke='%2334C759' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>";
 
 function todayStr() {
   const d = new Date();
@@ -154,25 +156,33 @@ function flightData(data) {
 
 function boardData(data, out) {
   const items = ((data && data.items) || []).slice();
-  const now = nowHM();
-  const keyOf = (it) => (out === '1' ? it.arrPlanHour : it.depPlanHour) || '99:99';
-  const upcoming = items.filter((it) => keyOf(it) >= now).sort((a, b) => (keyOf(a) < keyOf(b) ? -1 : 1));
-  const list = (upcoming.length ? upcoming : items);
-  return list.map((it) => {
-    const plan = out === '1' ? it.arrPlanHour : it.depPlanHour;
-    const est = out === '1' ? it.arrEstHour : it.depEstHour;
-    const term = out === '1' ? it.arrTerminal : it.depTerminal;
-    const sub = [];
-    if (term) sub.push(term);
-    if (est && est !== plan) sub.push('预计 ' + est);
-    if (/^\+[1-9]/.test(it.delayData || '')) sub.push('延误 ' + it.delayData.slice(1) + ' 分');
+  const toMin = (s) => { const m = /(\d{2}):(\d{2})/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : 9999; };
+  const nowMin = toMin(nowHM());
+  const planOf = (it) => (out === '1' ? it.arrPlanHour : it.depPlanHour) || '';
+  const estOf = (it) => (out === '1' ? it.arrEstHour : it.depEstHour) || '';
+  const effOf = (it) => estOf(it) || planOf(it);
+  const upcoming = items
+    .filter((it) => toMin(planOf(it)) >= nowMin || toMin(effOf(it)) >= nowMin)
+    .sort((a, b) => toMin(effOf(a)) - toMin(effOf(b)));
+  const list = upcoming.length ? upcoming : items;
+  return list.map((it, idx) => {
+    const plan = planOf(it);
+    const eff = effOf(it);
+    const diff = toMin(eff) - nowMin;
+    const isRel = diff >= 0 && diff <= 90;
+    const dm = /^[+-]?\d+$/.test((it.delayData || '').trim()) ? parseInt(it.delayData, 10) : 0;
     return {
+      rank: idx + 1,
       fno: it.flightNumber || '',
       code: it.airlineCode || '',
       place: (out === '1' ? it.departure : it.arrival) || '',
-      time: plan || '',
+      time: isRel ? (diff === 0 ? '现在' : diff + '分钟后') : eff,
+      eff: eff,
+      plan: plan,
+      isRel: isRel,
       status: it.flightStatus || '',
-      sub: sub.join(' · '),
+      term: (out === '1' ? it.arrTerminal : it.depTerminal) || '',
+      delayMins: dm,
     };
   });
 }
@@ -245,24 +255,35 @@ function renderFlight(d, fam) {
   return children;
 }
 
-function boardRow(it) {
+function boardRow(it, out) {
+  const sub = [];
+  if (it.term) sub.push({ type: 'text', text: it.term, font: { size: 9 }, textColor: GRAY });
+  if (it.isRel) {
+    if (it.eff) sub.push({ type: 'text', text: it.eff, font: { size: 9 }, textColor: GRAY });
+  } else if (it.plan && it.eff !== it.plan) {
+    sub.push({ type: 'text', text: '计划 ' + it.plan, font: { size: 9 }, textColor: GRAY });
+  }
+  if (it.delayMins > 0) sub.push({ type: 'text', text: '延误 ' + it.delayMins + ' 分', font: { size: 9, weight: 'semibold' }, textColor: ORANGE });
+  if (it.delayMins < 0) sub.push({ type: 'text', text: '提前 ' + (-it.delayMins) + ' 分', font: { size: 9, weight: 'semibold' }, textColor: GREEN });
   return {
-    type: 'stack', direction: 'row', alignItems: 'center', gap: 6, padding: [6, 8], backgroundColor: CARD, borderRadius: 10,
+    type: 'stack', direction: 'row', alignItems: 'center', gap: 5, padding: [6, 8], backgroundColor: CARD, borderRadius: 10,
     children: [
+      { type: 'text', text: String(it.rank), font: { size: 11 }, textColor: GRAY, width: 14, textAlign: 'center' },
+      { type: 'image', src: out === '1' ? ARROW_IN : ARROW_OUT, width: 12, height: 12 },
       {
-        type: 'stack', direction: 'column', gap: 1, width: 74, children: [
+        type: 'stack', direction: 'column', gap: 1, width: 70, children: [
           { type: 'text', text: it.fno, font: { size: 13, weight: 'bold' }, maxLines: 1, minScale: 0.7 },
           { type: 'text', text: it.code, font: { size: 9 }, textColor: GRAY },
         ],
       },
       {
-        type: 'stack', direction: 'column', gap: 1, flex: 1, children: [
+        type: 'stack', direction: 'column', gap: 2, flex: 1, children: [
           { type: 'text', text: it.place, font: { size: 13, weight: 'semibold' }, maxLines: 1, minScale: 0.7 },
-          { type: 'text', text: it.sub, font: { size: 9 }, textColor: GRAY, maxLines: 1 },
+          { type: 'stack', direction: 'row', gap: 4, children: sub },
         ],
       },
       {
-        type: 'stack', direction: 'column', gap: 3, width: 86, children: [
+        type: 'stack', direction: 'column', gap: 3, width: 84, children: [
           { type: 'text', text: it.time, font: { size: 14, weight: 'bold' }, textAlign: 'right' },
           { type: 'stack', direction: 'row', children: [{ type: 'spacer' }, pill(it.status || '—', statusColor(it.status))] },
         ],
@@ -325,7 +346,7 @@ export default async function (ctx) {
       if (!rows.length) return fail('暂无航班数据');
       firstLine = rows[0].fno + ' ' + rows[0].status;
       const max = fam === 'systemSmall' ? 3 : fam === 'systemMedium' ? 4 : fam === 'systemExtraLarge' ? 9 : 7;
-      bodyChildren = rows.slice(0, max).map(boardRow);
+      bodyChildren = rows.slice(0, max).map((it) => boardRow(it, out));
     } else if (mode === '机场天气') {
       title = airport + ' 机场天气';
       const d = weatherData(parseData(await callTool(ctx, key, 'getAirportWeatherBriefing', { airportCode: airport })));
