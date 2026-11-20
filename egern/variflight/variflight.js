@@ -218,7 +218,9 @@ function boardData(items, out) {
   const estOf = (it) => (dirOf(it) === '1' ? it.arrEstHour : it.depEstHour) || '';
   const actOf = (it) => (dirOf(it) === '1' ? (it.arrActHour || it.arrEstHour || it.arrPlanHour) : (it.depActHour || it.depEstHour || it.depPlanHour)) || '';
   const effOf = (it) => estOf(it) || planOf(it);
-  const isDone = (it) => (dirOf(it) === '1' ? /到达/ : /起飞|到达/).test(it.flightStatus || '');
+  const isDone = (it) => (dirOf(it) === '1'
+    ? (/到达/.test(it.flightStatus || '') || !!it.arrActHour)
+    : (/起飞|到达/.test(it.flightStatus || '') || !!it.depActHour));
 
   const enriched = items.map((it) => {
     const eff = effOf(it);
@@ -397,25 +399,25 @@ function boardRow(it) {
   if (it.delayMins > 0) sub.push({ type: 'text', text: '延误 ' + it.delayMins + ' 分', font: { size: 9, weight: 'semibold' }, textColor: ORANGE });
   if (it.delayMins < 0) sub.push({ type: 'text', text: '提前 ' + (-it.delayMins) + ' 分', font: { size: 9, weight: 'semibold' }, textColor: GREEN });
   return {
-    type: 'stack', direction: 'row', alignItems: 'center', gap: 5, padding: [6, 8], backgroundColor: CARD, borderRadius: 10,
+    type: 'stack', direction: 'row', alignItems: 'center', gap: 5, padding: [5, 8], backgroundColor: CARD, borderRadius: 10,
     children: [
-      { type: 'text', text: String(it.rank), font: { size: 11 }, textColor: GRAY, width: 14, textAlign: 'center' },
+      { type: 'text', text: String(it.rank), font: { size: 10 }, textColor: GRAY, width: 14, textAlign: 'center' },
       { type: 'image', src: it.dir === '1' ? ARROW_IN : ARROW_OUT, width: 12, height: 12 },
       {
         type: 'stack', direction: 'column', gap: 1, width: 70, children: [
-          { type: 'text', text: it.fno, font: { size: 13, weight: 'bold' }, maxLines: 1, minScale: 0.7 },
+          { type: 'text', text: it.fno, font: { size: 12, weight: 'bold' }, maxLines: 1, minScale: 0.7 },
           { type: 'text', text: it.code, font: { size: 9 }, textColor: GRAY },
         ],
       },
       {
         type: 'stack', direction: 'column', gap: 2, flex: 1, children: [
-          { type: 'text', text: it.place, font: { size: 13, weight: 'semibold' }, maxLines: 1, minScale: 0.7 },
+          { type: 'text', text: it.place, font: { size: 12, weight: 'semibold' }, maxLines: 1, minScale: 0.7 },
           { type: 'stack', direction: 'row', gap: 4, children: sub },
         ],
       },
       {
         type: 'stack', direction: 'column', gap: 3, width: 84, children: [
-          { type: 'text', text: it.time, font: { size: 14, weight: 'bold' }, textAlign: 'right' },
+          { type: 'text', text: it.time, font: { size: 13, weight: 'bold' }, textAlign: 'right' },
           { type: 'stack', direction: 'row', children: [{ type: 'spacer' }, pill(it.status || '—', statusColor(it.status))] },
         ],
       },
@@ -490,7 +492,7 @@ export default async function (ctx) {
       if (!rows.length) return fail('暂无航班数据');
       firstLine = rows[0].fno + ' ' + rows[0].status;
       const withChart = fam === 'systemLarge' || fam === 'systemExtraLarge';
-      const budget = fam === 'systemSmall' ? 3 : fam === 'systemMedium' ? 4 : fam === 'systemExtraLarge' ? 7 : 5;
+      const budget = fam === 'systemSmall' ? 3 : fam === 'systemMedium' ? 4 : fam === 'systemExtraLarge' ? 8 : 6;
       const picked = [];
       let flights = 0;
       for (const r of rows) {
