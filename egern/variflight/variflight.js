@@ -44,8 +44,8 @@ function shortErr(t) {
   return String(t).replace(/\s+/g, ' ').slice(0, 60);
 }
 
-// MCP 握手（initialize → initialized 通知 → tools/call），返回工具的文本结果
-async function callTool(ctx, key, name, args) {
+// MCP 会话：握手一次（initialize → initialized 通知），之后多次 tools/call 复用
+async function openSession(ctx, key) {
   const base = {
     'Content-Type': 'application/json',
     'Accept': 'application/json, text/event-stream',
@@ -60,6 +60,7 @@ async function callTool(ctx, key, name, args) {
     timeout: 20000,
   });
   await init.text();
+  if (init.status === 401) throw new Error('Key 无效或已重新生成，请在模块设置里重填');
   let sid = null;
   try { sid = init.headers && init.headers.get ? init.headers.get('Mcp-Session-Id') : null; } catch (e) { sid = null; }
   const h = Object.assign({}, base);
@@ -69,23 +70,26 @@ async function callTool(ctx, key, name, args) {
     await n.text();
   } catch (e) { /* 通知失败不阻断查询 */ }
 
-  const resp = await ctx.http.post(ENDPOINT, {
-    headers: h,
-    body: { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: name, arguments: args } },
-    timeout: 20000,
-  });
-  let text = await resp.text();
-  if (resp.status !== 200) throw new Error('HTTP ' + resp.status);
-  if (text.indexOf('data:') >= 0) {
-    const parts = text.split('\n').filter((l) => l.indexOf('data:') === 0).map((l) => l.slice(5).trim()).filter(Boolean);
-    if (parts.length) text = parts[parts.length - 1];
-  }
-  const msg = JSON.parse(text);
-  if (msg.error) throw new Error(shortErr(JSON.stringify(msg.error)));
-  const result = msg.result || {};
-  const content = (result.content || []).map((c) => c.text || '').join('\n').trim();
-  if (result.isError) throw new Error(shortErr(content));
-  return content;
+  let seq = 2;
+  return async function call(name, args) {
+    const resp = await ctx.http.post(ENDPOINT, {
+      headers: h,
+      body: { jsonrpc: '2.0', id: seq++, method: 'tools/call', params: { name: name, arguments: args } },
+      timeout: 20000,
+    });
+    let text = await resp.text();
+    if (resp.status !== 200) throw new Error('HTTP ' + resp.status);
+    if (text.indexOf('data:') >= 0) {
+      const parts = text.split('\n').filter((l) => l.indexOf('data:') === 0).map((l) => l.slice(5).trim()).filter(Boolean);
+      if (parts.length) text = parts[parts.length - 1];
+    }
+    const msg = JSON.parse(text);
+    if (msg.error) throw new Error(shortErr(JSON.stringify(msg.error)));
+    const result = msg.result || {};
+    const content = (result.content || []).map((c) => c.text || '').join('\n').trim();
+    if (result.isError) throw new Error(shortErr(content));
+    return content;
+  };
 }
 
 function parseData(text) {
@@ -316,6 +320,71 @@ function weatherData(data) {
   };
 }
 
+// 大屏数据里没有已到达航班时，拿最近一班已过点的航班查单航班状态，确认落地才置顶
+async function fetchPinned(call, items, dirEnv) {
+  const toMin = (s) => { const m = /(\d{2}):(\d{2})/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+  const nowD = new Date();
+  const nowMin = nowD.getHours() * 60 + nowD.getMinutes();
+  const wrap = (d) => { if (d == null) return null; if (d < -720) return d + 1440; if (d > 720) return d - 1440; return d; };
+  const dirs = dirEnv === 'all' ? ['1'] : [dirEnv];
+  for (const dir of dirs) {
+    const cands = (items || [])
+      .filter((it) => (dirEnv === 'all' ? (it._dir || '0') : dirEnv) === dir)
+      .filter((it) => !/取消/.test(it.flightStatus || ''))
+      .map((it) => {
+        const t = (dir === '1' ? (it.arrEstHour || it.arrPlanHour) : (it.depEstHour || it.depPlanHour)) || '';
+        const m = toMin(t);
+        return { it: it, d: m != null ? wrap(m - nowMin) : null };
+      })
+      .filter((c) => c.d != null && c.d <= 5 && c.d >= -120)
+      .sort((a, b) => b.d - a.d)
+      .slice(0, 15);
+    if (!cands.length) continue;
+    // 分批并行查单航班状态，收集所有已确认落地的，再取其中最晚到达的一班
+    const confirmed = [];
+    for (let i = 0; i < cands.length; i += 5) {
+      const batch = cands.slice(i, i + 5);
+      const results = await Promise.all(batch.map(async (cand) => {
+        try {
+          const fd = flightData(parseData(await call('getFlightStatus', { fnum: cand.it.flightNumber, date: todayStr() })));
+          return fd ? { cand: cand, fd: fd } : null;
+        } catch (e) { return null; }
+      }));
+      for (const r of results) {
+        if (!r) continue;
+        const actStr = dir === '1' ? r.fd.actA : r.fd.actD;
+        const ok = dir === '1' ? /到达/.test(r.fd.state) : /起飞|到达/.test(r.fd.state);
+        if (!ok || !actStr) continue;
+        const aMin = toMin(actStr);
+        const dAct = aMin != null ? wrap(aMin - nowMin) : null;
+        if (dAct == null || dAct > 10 || dAct < -150) continue;
+        confirmed.push({ cand: r.cand, fd: r.fd, actStr: actStr, dAct: dAct });
+      }
+      if (confirmed.length) break;
+    }
+    if (!confirmed.length) continue;
+    confirmed.sort((a, b) => b.dAct - a.dAct);
+    const best = confirmed[0];
+    const cand = best.cand;
+    const fd = best.fd;
+    const inWin = best.dAct <= 0 && best.dAct >= -120;
+    const dm = /^[+-]?\d+$/.test((cand.it.delayData || '').trim()) ? parseInt(cand.it.delayData, 10) : 0;
+    return {
+      rank: '', done: true, dir: dir,
+      fno: fd.fnum, code: fd.fnum.slice(0, 2),
+      place: (dir === '1' ? cand.it.departure : cand.it.arrival) || '',
+      time: inWin ? (best.dAct === 0 ? '刚刚' : (-best.dAct) + '分钟前') : best.actStr,
+      eff: best.actStr,
+      plan: (dir === '1' ? cand.it.arrPlanHour : cand.it.depPlanHour) || '',
+      isRel: inWin,
+      status: fd.state,
+      term: (dir === '1' ? fd.arrT : fd.depT) || (dir === '1' ? cand.it.arrTerminal : cand.it.depTerminal) || '',
+      delayMins: dm,
+    };
+  }
+  return null;
+}
+
 // ---------- 渲染 ----------
 
 function renderFlight(d, fam) {
@@ -475,20 +544,29 @@ export default async function (ctx) {
   let firstLine = '';
   let bodyChildren;
   try {
+    const call = await openSession(ctx, key);
     if (mode === '机场大屏') {
       const dirEnv = env.DIRECTION === '进港' ? '1' : env.DIRECTION === '全局' ? 'all' : '0';
       title = airport + (dirEnv === '1' ? ' 进港' : dirEnv === 'all' ? ' 全局' : ' 出港');
       let boardItems;
       if (dirEnv === 'all') {
-        const dOut = parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: '0' }));
-        const dIn = parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: '1' }));
+        const dOut = parseData(await call('getAirportFlightBoard', { local: airport, out: '0' }));
+        const dIn = parseData(await call('getAirportFlightBoard', { local: airport, out: '1' }));
         boardItems = ((dOut && dOut.items) || []).map((it) => Object.assign({}, it, { _dir: '0' }))
           .concat(((dIn && dIn.items) || []).map((it) => Object.assign({}, it, { _dir: '1' })));
       } else {
-        const d = parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: dirEnv }));
+        const d = parseData(await call('getAirportFlightBoard', { local: airport, out: dirEnv }));
         boardItems = (d && d.items) || [];
       }
-      const rows = boardData(boardItems, dirEnv);
+      const rows0 = boardData(boardItems, dirEnv);
+      let rows = rows0;
+      if (!rows.some((r) => r.done)) {
+        const pinned = await fetchPinned(call, boardItems, dirEnv);
+        if (pinned) {
+          rows = rows.filter((r) => r.divider || r.fno !== pinned.fno);
+          rows = [pinned, { divider: dirEnv === '1' ? '以上是已进港航班' : dirEnv === '0' ? '以上是已出港航班' : '以上是已起降航班' }].concat(rows);
+        }
+      }
       if (!rows.length) return fail('暂无航班数据');
       firstLine = rows[0].fno + ' ' + rows[0].status;
       const withChart = fam === 'systemLarge' || fam === 'systemExtraLarge';
@@ -531,14 +609,14 @@ export default async function (ctx) {
       }
     } else if (mode === '机场天气') {
       title = airport + ' 机场天气';
-      const d = weatherData(parseData(await callTool(ctx, key, 'getAirportWeatherBriefing', { airportCode: airport })));
+      const d = weatherData(parseData(await call('getAirportWeatherBriefing', { airportCode: airport })));
       if (!d.desc) return fail('暂无天气数据');
       firstLine = d.desc + ' ' + d.range;
       bodyChildren = renderWeather(d);
     } else {
       const fnum = (env.FLIGHT || 'MU5102').trim().toUpperCase();
       title = fnum + ' · ' + todayStr().slice(5);
-      const d = flightData(parseData(await callTool(ctx, key, 'getFlightStatus', { fnum: fnum, date: todayStr() })));
+      const d = flightData(parseData(await call('getFlightStatus', { fnum: fnum, date: todayStr() })));
       if (!d) return fail('暂无该航班数据');
       firstLine = d.fnum + ' ' + d.state;
       bodyChildren = renderFlight(d, fam);
