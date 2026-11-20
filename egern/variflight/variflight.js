@@ -10,6 +10,15 @@
 
 const ENDPOINT = 'https://c-gw.variflight.com/chat_message/mcp/api/legacy';
 
+const GRAY = '#8E8E93';
+const RED = '#FF3B30';
+const ORANGE = '#FF9500';
+const GREEN = '#34C759';
+const BLUE = '#0A84FF';
+const BG = { light: '#FFFFFF', dark: '#1C1C1E' };
+const CARD = { light: '#F2F2F7', dark: '#2C2C2E' };
+const PLANE = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%230A84FF' d='M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/></svg>";
+
 function todayStr() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
@@ -44,7 +53,7 @@ async function callTool(ctx, key, name, args) {
     headers: base,
     body: {
       jsonrpc: '2.0', id: 1, method: 'initialize',
-      params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'egern-widget', version: '1' } },
+      params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'egern-widget', version: '2' } },
     },
     timeout: 20000,
   });
@@ -81,54 +90,211 @@ function parseData(text) {
   try { return JSON.parse(text); } catch (e) { return null; }
 }
 
-function flightLines(data) {
-  const items = (data && data.items) || [];
-  if (!items.length) return ['暂无该航班数据'];
-  const f = items[0];
-  const lines = [];
-  lines.push(f.FlightNo + ' ' + (f.FlightState || ''));
-  lines.push((f.FlightDepAirport || f.FlightDep || '') + ' → ' + (f.FlightArrAirport || f.FlightArr || ''));
-  lines.push('计划 ' + hhmm(f.FlightDeptimePlanDate) + ' 起飞 · ' + hhmm(f.FlightArrtimePlanDate) + ' 到达');
-  const actDep = hhmm(f.FlightDeptimeDate || f.FlightDeptimeEstDate);
-  const actArr = hhmm(f.FlightArrtimeDate || f.FlightArrtimeEstDate);
-  if (actDep || actArr) lines.push('实际 ' + (actDep || '--:--') + ' 起飞 · ' + (actArr || '--:--') + ' 到达');
-  const bits = [];
-  if (f.BoardGate) bits.push('登机口 ' + f.BoardGate);
-  if (f.CheckinTable) bits.push('值机 ' + f.CheckinTable);
-  if (f.BaggageID) bits.push('行李 ' + f.BaggageID);
-  if (bits.length) lines.push(bits.join(' · '));
-  if (f.ontimeRate) lines.push('准点率 ' + f.ontimeRate + (f.AvgDelay ? ' · 平均延误 ' + f.AvgDelay : ''));
-  return lines;
+function statusColor(s) {
+  if (/取消/.test(s)) return RED;
+  if (/延误/.test(s)) return ORANGE;
+  if (/到达/.test(s)) return GREEN;
+  if (/起飞|登机|催促|滑行|值机/.test(s)) return BLUE;
+  return GRAY;
 }
 
-function boardLines(data, out) {
+function pill(text, color) {
+  return {
+    type: 'stack', direction: 'row', padding: [2, 6], backgroundColor: color + '1F', borderRadius: 6,
+    children: [{ type: 'text', text: text, font: { size: 10, weight: 'semibold' }, textColor: color }],
+  };
+}
+
+function header(title) {
+  return {
+    type: 'stack', direction: 'row', alignItems: 'center', gap: 5,
+    children: [
+      { type: 'image', src: PLANE, width: 13, height: 13 },
+      { type: 'text', text: title, font: { size: 13, weight: 'semibold' } },
+      { type: 'spacer' },
+      { type: 'date', date: new Date().toISOString(), format: 'time', font: { size: 10 }, textColor: GRAY },
+    ],
+  };
+}
+
+function chip(label, value) {
+  return {
+    type: 'stack', direction: 'column', alignItems: 'center', gap: 1, flex: 1, padding: [5, 2], backgroundColor: CARD, borderRadius: 8,
+    children: [
+      { type: 'text', text: label, font: { size: 9 }, textColor: GRAY },
+      { type: 'text', text: value, font: { size: 12, weight: 'bold' }, maxLines: 1, minScale: 0.6 },
+    ],
+  };
+}
+
+// ---------- 数据整理 ----------
+
+function flightData(data) {
+  const items = (data && data.items) || [];
+  if (!items.length) return null;
+  const f = items[0];
+  return {
+    fnum: f.FlightNo || '',
+    state: f.FlightState || '',
+    depA: f.FlightDepAirport || f.FlightDep || '',
+    arrA: f.FlightArrAirport || f.FlightArr || '',
+    depT: f.FlightDepTerminal || '',
+    arrT: f.FlightArrTerminal || '',
+    planD: hhmm(f.FlightDeptimePlanDate),
+    planA: hhmm(f.FlightArrtimePlanDate),
+    actD: hhmm(f.FlightDeptimeDate || f.FlightDeptimeEstDate),
+    actA: hhmm(f.FlightArrtimeDate || f.FlightArrtimeEstDate),
+    gate: f.BoardGate || '',
+    checkin: f.CheckinTable || '',
+    baggage: f.BaggageID || '',
+    ontime: f.ontimeRate || '',
+    avgDelay: f.AvgDelay || '',
+  };
+}
+
+function boardData(data, out) {
   const items = ((data && data.items) || []).slice();
-  if (!items.length) return ['暂无航班数据'];
   const now = nowHM();
   const keyOf = (it) => (out === '1' ? it.arrPlanHour : it.depPlanHour) || '99:99';
   const upcoming = items.filter((it) => keyOf(it) >= now).sort((a, b) => (keyOf(a) < keyOf(b) ? -1 : 1));
-  const list = (upcoming.length ? upcoming : items).slice(0, 12);
+  const list = (upcoming.length ? upcoming : items);
   return list.map((it) => {
-    const t = out === '1' ? it.arrPlanHour : it.depPlanHour;
-    const place = out === '1' ? it.departure : it.arrival;
-    let s = it.flightNumber + ' ' + place + ' ' + t + ' ' + (it.flightStatus || '');
-    if (/^\+[1-9]/.test(it.delayData || '')) s += ' 延误' + it.delayData.slice(1) + '分';
-    return s;
+    const plan = out === '1' ? it.arrPlanHour : it.depPlanHour;
+    const est = out === '1' ? it.arrEstHour : it.depEstHour;
+    const term = out === '1' ? it.arrTerminal : it.depTerminal;
+    const sub = [];
+    if (term) sub.push(term);
+    if (est && est !== plan) sub.push('预计 ' + est);
+    if (/^\+[1-9]/.test(it.delayData || '')) sub.push('延误 ' + it.delayData.slice(1) + ' 分');
+    return {
+      fno: it.flightNumber || '',
+      code: it.airlineCode || '',
+      place: (out === '1' ? it.departure : it.arrival) || '',
+      time: plan || '',
+      status: it.flightStatus || '',
+      sub: sub.join(' · '),
+    };
   });
 }
 
-function weatherLines(data) {
+function weatherData(data) {
   const it = (data && data.item) || {};
   const g = it.genericWeather || {};
   const rows = (it.latestWeather && it.latestWeather.rows) || [];
   const w = rows[0] || {};
-  const lines = [];
-  if (g.desc) lines.push(g.desc + ' ' + (g.low || '') + '~' + (g.high || ''));
-  if (w.wtype) lines.push('实况 ' + w.wtype + ' ' + (w.wtemperature || '') + '℃ · 能见度 ' + (w.wvisib === '9999' ? '≥10km' : (w.wvisib || '') + 'm'));
-  if (g.wind) lines.push('风 ' + g.wind);
-  const lv = { high: '高', medium: '中', low: '低' }[it.impactLevel];
-  if (lv) lines.push('天气影响：' + lv);
-  return lines.length ? lines : ['暂无天气数据'];
+  return {
+    desc: g.desc || w.wtype || '',
+    range: (g.low || '') + '~' + (g.high || ''),
+    liveTemp: w.wtemperature || g.temper || '',
+    vis: w.wvisib === '9999' ? '≥10km' : (w.wvisib ? w.wvisib + 'm' : (g.seefar || '')),
+    wind: g.wind || '',
+    impact: { high: '高', medium: '中', low: '低' }[it.impactLevel] || '',
+    impactColor: it.impactLevel === 'high' ? RED : it.impactLevel === 'medium' ? ORANGE : GREEN,
+  };
+}
+
+// ---------- 渲染 ----------
+
+function renderFlight(d, fam) {
+  const children = [];
+  const card = {
+    type: 'stack', direction: 'column', gap: 6, padding: 10, backgroundColor: CARD, borderRadius: 12,
+    children: [
+      {
+        type: 'stack', direction: 'row', alignItems: 'start', children: [
+          {
+            type: 'stack', direction: 'column', gap: 1, children: [
+              { type: 'text', text: d.depA, font: { size: 16, weight: 'bold' }, maxLines: 1, minScale: 0.7 },
+              { type: 'text', text: d.depT, font: { size: 9 }, textColor: GRAY },
+            ],
+          },
+          { type: 'spacer' },
+          { type: 'text', text: '→', font: { size: 15 }, textColor: GRAY },
+          { type: 'spacer' },
+          {
+            type: 'stack', direction: 'column', gap: 1, children: [
+              { type: 'text', text: d.arrA, font: { size: 16, weight: 'bold' }, maxLines: 1, minScale: 0.7, textAlign: 'right' },
+              { type: 'text', text: d.arrT, font: { size: 9 }, textColor: GRAY, textAlign: 'right' },
+            ],
+          },
+        ],
+      },
+      {
+        type: 'stack', direction: 'row', alignItems: 'center', gap: 6, children: [
+          pill(d.state || '—', statusColor(d.state)),
+          { type: 'spacer' },
+          { type: 'text', text: d.ontime ? '准点率 ' + d.ontime + (d.avgDelay ? ' · 均延 ' + d.avgDelay : '') : '', font: { size: 9 }, textColor: GRAY },
+        ],
+      },
+    ],
+  };
+  children.push(card);
+  if (fam !== 'systemSmall') {
+    children.push({
+      type: 'stack', direction: 'row', gap: 6, children: [
+        chip('计划', d.planD + ' → ' + d.planA),
+        chip('实际', (d.actD || '--:--') + ' → ' + (d.actA || '--:--')),
+      ],
+    });
+    const chips = [];
+    if (d.gate) chips.push(chip('登机口', d.gate));
+    if (d.checkin) chips.push(chip('值机', d.checkin));
+    if (d.baggage) chips.push(chip('行李', d.baggage));
+    if (chips.length) children.push({ type: 'stack', direction: 'row', gap: 6, children: chips });
+  }
+  return children;
+}
+
+function boardRow(it) {
+  return {
+    type: 'stack', direction: 'row', alignItems: 'center', gap: 6, padding: [6, 8], backgroundColor: CARD, borderRadius: 10,
+    children: [
+      {
+        type: 'stack', direction: 'column', gap: 1, width: 74, children: [
+          { type: 'text', text: it.fno, font: { size: 13, weight: 'bold' }, maxLines: 1, minScale: 0.7 },
+          { type: 'text', text: it.code, font: { size: 9 }, textColor: GRAY },
+        ],
+      },
+      {
+        type: 'stack', direction: 'column', gap: 1, flex: 1, children: [
+          { type: 'text', text: it.place, font: { size: 13, weight: 'semibold' }, maxLines: 1, minScale: 0.7 },
+          { type: 'text', text: it.sub, font: { size: 9 }, textColor: GRAY, maxLines: 1 },
+        ],
+      },
+      {
+        type: 'stack', direction: 'column', gap: 3, width: 86, children: [
+          { type: 'text', text: it.time, font: { size: 14, weight: 'bold' }, textAlign: 'right' },
+          { type: 'stack', direction: 'row', children: [{ type: 'spacer' }, pill(it.status || '—', statusColor(it.status))] },
+        ],
+      },
+    ],
+  };
+}
+
+function renderWeather(d) {
+  return [
+    {
+      type: 'stack', direction: 'column', gap: 6, padding: 10, backgroundColor: CARD, borderRadius: 12,
+      children: [
+        {
+          type: 'stack', direction: 'row', alignItems: 'end', gap: 6, children: [
+            { type: 'text', text: d.desc, font: { size: 20, weight: 'bold' } },
+            { type: 'text', text: d.range, font: { size: 12 }, textColor: GRAY },
+            { type: 'spacer' },
+            { type: 'text', text: d.liveTemp ? d.liveTemp + '℃' : '', font: { size: 20, weight: 'bold' }, textColor: BLUE },
+          ],
+        },
+        { type: 'text', text: '实况温度 · 能见度 ' + d.vis, font: { size: 10 }, textColor: GRAY },
+      ],
+    },
+    {
+      type: 'stack', direction: 'row', gap: 6, children: [
+        chip('风', d.wind || '—'),
+        chip('能见度', d.vis || '—'),
+        d.impact ? chip('天气影响', d.impact) : chip('天气影响', '—'),
+      ],
+    },
+  ];
 }
 
 export default async function (ctx) {
@@ -136,78 +302,62 @@ export default async function (ctx) {
   const fam = ctx.widgetFamily || 'systemMedium';
   const refreshMin = Number(env.REFRESH) || 10;
   const refreshAfter = new Date(Date.now() + refreshMin * 60000).toISOString();
-  const GRAY = '#8E8E93';
-  const RED = '#FF3B30';
-  const bg = { light: '#FFFFFF', dark: '#1C1C1E' };
   const mode = env.MODE === '机场大屏' || env.MODE === '机场天气' ? env.MODE : '航班动态';
   const key = (env.API_KEY || '').trim();
 
-  const fail = (msg) => ({
-    type: 'widget', padding: 14, gap: 4, backgroundColor: bg, refreshAfter,
-    children: [
-      { type: 'text', text: '飞常准 · ' + mode, font: { size: 14, weight: 'semibold' } },
-      { type: 'text', text: msg, font: { size: 12 }, textColor: RED, maxLines: 3 },
-    ],
-  });
+  const shell = (children) => ({ type: 'widget', padding: 12, gap: 6, backgroundColor: BG, refreshAfter, children });
+  const fail = (msg) => shell([
+    header('飞常准 · ' + mode),
+    { type: 'text', text: msg, font: { size: 12 }, textColor: RED, maxLines: 3 },
+  ]);
 
   if (!key) return fail('请先在模块设置里填 MCP Key');
 
   const airport = (env.AIRPORT || 'SHA').trim().toUpperCase();
   let title;
-  let lines;
+  let firstLine = '';
+  let bodyChildren;
   try {
     if (mode === '机场大屏') {
       const out = env.DIRECTION === '进港' ? '1' : '0';
       title = airport + (out === '1' ? ' 进港' : ' 出港');
-      lines = boardLines(parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: out })), out);
+      const rows = boardData(parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: out })), out);
+      if (!rows.length) return fail('暂无航班数据');
+      firstLine = rows[0].fno + ' ' + rows[0].status;
+      const max = fam === 'systemSmall' ? 3 : fam === 'systemMedium' ? 4 : fam === 'systemExtraLarge' ? 9 : 7;
+      bodyChildren = rows.slice(0, max).map(boardRow);
     } else if (mode === '机场天气') {
       title = airport + ' 机场天气';
-      lines = weatherLines(parseData(await callTool(ctx, key, 'getAirportWeatherBriefing', { airportCode: airport })));
+      const d = weatherData(parseData(await callTool(ctx, key, 'getAirportWeatherBriefing', { airportCode: airport })));
+      if (!d.desc) return fail('暂无天气数据');
+      firstLine = d.desc + ' ' + d.range;
+      bodyChildren = renderWeather(d);
     } else {
       const fnum = (env.FLIGHT || 'MU5102').trim().toUpperCase();
       title = fnum + ' · ' + todayStr().slice(5);
-      lines = flightLines(parseData(await callTool(ctx, key, 'getFlightStatus', { fnum: fnum, date: todayStr() })));
+      const d = flightData(parseData(await callTool(ctx, key, 'getFlightStatus', { fnum: fnum, date: todayStr() })));
+      if (!d) return fail('暂无该航班数据');
+      firstLine = d.fnum + ' ' + d.state;
+      bodyChildren = renderFlight(d, fam);
     }
   } catch (e) {
     return fail(String((e && e.message) || e));
   }
-  if (!lines.length) lines = ['暂无数据'];
 
   if (fam === 'accessoryInline') {
-    return { type: 'widget', refreshAfter, children: [{ type: 'text', text: title + ' ' + lines[0] }] };
+    return { type: 'widget', refreshAfter, children: [{ type: 'text', text: title + ' ' + firstLine }] };
   }
   if (fam === 'accessoryCircular') {
     return {
       type: 'widget', refreshAfter, padding: 4, gap: 2,
       children: [
         { type: 'text', text: title.split(' ')[0].slice(0, 7), font: { size: 10 }, textAlign: 'center' },
-        { type: 'text', text: lines[0].slice(0, 8), font: { size: 11, weight: 'bold' }, maxLines: 1, minScale: 0.5, textAlign: 'center' },
+        { type: 'text', text: firstLine.slice(0, 8), font: { size: 11, weight: 'bold' }, maxLines: 1, minScale: 0.5, textAlign: 'center' },
       ],
     };
   }
-
-  const maxLines = fam === 'systemSmall' ? 4 : fam === 'systemMedium' ? 7 : 12;
-  const statusColor = (s) => (/取消/.test(s) ? RED : /延误/.test(s) ? '#FF9500' : undefined);
-  const body = lines.slice(0, maxLines).map((l, i) => ({
-    type: 'text',
-    text: l,
-    font: i === 0 && mode === '航班动态' ? { size: 15, weight: 'bold' } : { size: 12 },
-    textColor: statusColor(l),
-    maxLines: fam === 'systemSmall' ? 2 : 1,
-    minScale: 0.7,
-  }));
-
-  return {
-    type: 'widget', padding: 12, gap: 4, backgroundColor: bg, refreshAfter,
-    children: [
-      {
-        type: 'stack', direction: 'row', alignItems: 'center',
-        children: [
-          { type: 'text', text: title, font: { size: 13, weight: 'semibold' } },
-          { type: 'spacer' },
-          { type: 'date', date: new Date().toISOString(), format: 'time', font: { size: 10 }, textColor: GRAY },
-        ],
-      },
-    ].concat(body),
-  };
+  if (fam === 'accessoryRectangular') {
+    return shell([header(title)].concat(bodyChildren.slice(0, 2)));
+  }
+  return shell([header(title)].concat(bodyChildren));
 }

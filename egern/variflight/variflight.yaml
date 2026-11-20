@@ -88,6 +88,8 @@ scriptings:
 
       script_url: "https://raw.githubusercontent.com/Voidscap/plugins/main/egern/variflight/variflight.js"
 
+      update_interval: 3600
+
       timeout: 60
 
 
