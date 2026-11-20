@@ -87,13 +87,22 @@ async function openSession(ctx, key) {
     if (msg.error) throw new Error(shortErr(JSON.stringify(msg.error)));
     const result = msg.result || {};
     const content = (result.content || []).map((c) => c.text || '').join('\n').trim();
-    if (result.isError) throw new Error(shortErr(content));
+    if (result.isError) {
+      let m = content;
+      try { const j = JSON.parse(content); if (j && j.error && j.error.message) m = j.error.message; } catch (e) { /* 用原文 */ }
+      throw new Error(shortErr(m));
+    }
     return content;
   };
 }
 
 function parseData(text) {
   try { return JSON.parse(text); } catch (e) { return null; }
+}
+
+function throwIfErr(d) {
+  if (d && d.error) throw new Error(shortErr((d.error && d.error.message) || '接口错误'));
+  return d;
 }
 
 function statusColor(s) {
@@ -336,9 +345,9 @@ async function fetchPinned(call, items, dirEnv) {
         const m = toMin(t);
         return { it: it, d: m != null ? wrap(m - nowMin) : null };
       })
-      .filter((c) => c.d != null && c.d <= 5 && c.d >= -120)
+      .filter((c) => c.d != null && c.d <= 5 && c.d >= -90)
       .sort((a, b) => b.d - a.d)
-      .slice(0, 15);
+      .slice(0, 3);
     if (!cands.length) continue;
     // 分批并行查单航班状态，收集所有已确认落地的，再取其中最晚到达的一班
     const confirmed = [];
@@ -526,7 +535,7 @@ function renderWeather(d) {
 export default async function (ctx) {
   const env = ctx.env || {};
   const fam = ctx.widgetFamily || 'systemMedium';
-  const refreshMin = Number(env.REFRESH) || 10;
+  const refreshMin = Math.max(15, Number(env.REFRESH) || 15);
   const refreshAfter = new Date(Date.now() + refreshMin * 60000).toISOString();
   const mode = env.MODE === '机场大屏' || env.MODE === '机场天气' ? env.MODE : '航班动态';
   const key = (env.API_KEY || '').trim();
@@ -550,12 +559,12 @@ export default async function (ctx) {
       title = airport + (dirEnv === '1' ? ' 进港' : dirEnv === 'all' ? ' 全局' : ' 出港');
       let boardItems;
       if (dirEnv === 'all') {
-        const dOut = parseData(await call('getAirportFlightBoard', { local: airport, out: '0' }));
-        const dIn = parseData(await call('getAirportFlightBoard', { local: airport, out: '1' }));
+        const dOut = throwIfErr(parseData(await call('getAirportFlightBoard', { local: airport, out: '0' })));
+        const dIn = throwIfErr(parseData(await call('getAirportFlightBoard', { local: airport, out: '1' })));
         boardItems = ((dOut && dOut.items) || []).map((it) => Object.assign({}, it, { _dir: '0' }))
           .concat(((dIn && dIn.items) || []).map((it) => Object.assign({}, it, { _dir: '1' })));
       } else {
-        const d = parseData(await call('getAirportFlightBoard', { local: airport, out: dirEnv }));
+        const d = throwIfErr(parseData(await call('getAirportFlightBoard', { local: airport, out: dirEnv })));
         boardItems = (d && d.items) || [];
       }
       const rows0 = boardData(boardItems, dirEnv);
@@ -618,14 +627,14 @@ export default async function (ctx) {
       }
     } else if (mode === '机场天气') {
       title = airport + ' 机场天气';
-      const d = weatherData(parseData(await call('getAirportWeatherBriefing', { airportCode: airport })));
+      const d = weatherData(throwIfErr(parseData(await call('getAirportWeatherBriefing', { airportCode: airport }))));
       if (!d.desc) return fail('暂无天气数据');
       firstLine = d.desc + ' ' + d.range;
       bodyChildren = renderWeather(d);
     } else {
       const fnum = (env.FLIGHT || 'MU5102').trim().toUpperCase();
       title = fnum + ' · ' + todayStr().slice(5);
-      const d = flightData(parseData(await call('getFlightStatus', { fnum: fnum, date: todayStr() })));
+      const d = flightData(throwIfErr(parseData(await call('getFlightStatus', { fnum: fnum, date: todayStr() }))));
       if (!d) return fail('暂无该航班数据');
       firstLine = d.fnum + ' ' + d.state;
       bodyChildren = renderFlight(d, fam);
