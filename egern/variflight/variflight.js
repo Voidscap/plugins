@@ -184,17 +184,16 @@ function routeSvg(t) {
 }
 
 function barsSvg(counts) {
-  const bw = 26;
-  const gap = (300 - counts.length * bw) / (counts.length + 1);
   const max = Math.max.apply(null, counts.concat([1]));
   let rects = '';
   counts.forEach((n, i) => {
-    const h = Math.max(3, Math.round(n / max * 30));
-    const x = gap + i * (bw + gap);
-    rects += "<rect x='" + x.toFixed(0) + "' y='" + (36 - h) + "' width='" + bw + "' height='" + h + "' rx='4' fill='" + (i === 0 ? '%230A84FF' : '%23AEAEB2') + "'/>";
+    const cx = 25 + i * 50;
+    const h = n === 0 ? 2 : Math.max(4, Math.round(n / max * 34));
+    const fill = n === 0 ? '%23E5E5EA' : i === 0 ? '%230A84FF' : '%23AEAEB2';
+    rects += "<rect x='" + (cx - 8) + "' y='" + (40 - h) + "' width='16' height='" + h + "' rx='4' fill='" + fill + "'/>";
   });
-  return "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 40'>"
-    + rects + "<rect x='0' y='37' width='300' height='1.5' fill='%23E5E5EA'/></svg>";
+  return "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 44'>"
+    + rects + "<rect x='0' y='41' width='300' height='1.5' fill='%23E5E5EA'/></svg>";
 }
 
 function tempSvg(low, high) {
@@ -244,18 +243,21 @@ function boardData(items, out) {
 }
 
 function boardBars(items, out) {
-  const nowH = new Date().getHours();
+  const now = new Date();
+  const nowH = now.getHours();
   const counts = [0, 0, 0, 0, 0, 0];
+  const hours = [0, 1, 2, 3, 4, 5].map((i) => (nowH + i) % 24);
   let total = 0;
   for (const it of items || []) {
     const dir = out === 'all' ? (it._dir || '0') : out;
     const eff = (dir === '1' ? (it.arrEstHour || it.arrPlanHour) : (it.depEstHour || it.depPlanHour)) || '';
     const m = /(\d{2}):/.exec(eff);
     if (!m) continue;
-    const idx = (+m[1]) - nowH;
+    let idx = (+m[1]) - nowH;
+    if (idx < 0) idx += 24;
     if (idx >= 0 && idx < 6) { counts[idx]++; total++; }
   }
-  return { counts: counts, total: total };
+  return { counts: counts, hours: hours, total: total };
 }
 
 function weatherData(data) {
@@ -459,7 +461,12 @@ export default async function (ctx) {
                     { type: 'text', text: '共 ' + bars.total + ' 班', font: { size: 9 }, textColor: GRAY },
                   ],
                 },
-                { type: 'image', src: barsSvg(bars.counts), width: 300, height: 40 },
+                { type: 'image', src: barsSvg(bars.counts), width: 300, height: 44 },
+                {
+                  type: 'stack', direction: 'row', children: bars.counts.map((n, i) => ({
+                    type: 'text', text: bars.hours[i] + '时·' + n, font: { size: 9 }, textColor: GRAY, width: 50, textAlign: 'center',
+                  })),
+                },
               ],
             },
           ].concat(bodyChildren);
