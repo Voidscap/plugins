@@ -190,7 +190,7 @@ function barsSvg(counts) {
     const cx = 25 + i * 50;
     const h = n === 0 ? 2 : Math.max(4, Math.round(n / max * 34));
     const fill = n === 0 ? '%23E5E5EA' : i === 0 ? '%230A84FF' : '%23AEAEB2';
-    rects += "<rect x='" + (cx - 8) + "' y='" + (40 - h) + "' width='16' height='" + h + "' rx='4' fill='" + fill + "'/>";
+    rects += "<rect x='" + (cx - 7) + "' y='" + (40 - h) + "' width='13' height='" + h + "' rx='4' fill='" + fill + "'/>";
   });
   return "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 44'>"
     + rects + "<rect x='0' y='41' width='300' height='1.5' fill='%23E5E5EA'/></svg>";
@@ -516,9 +516,11 @@ export default async function (ctx) {
                 },
                 { type: 'image', src: barsSvg(bars.counts), width: 300, height: 44 },
                 {
-                  type: 'stack', direction: 'row', children: bars.counts.map((n, i) => ({
-                    type: 'text', text: bars.hours[i] + '时·' + n, font: { size: 9 }, textColor: GRAY, width: 50, textAlign: 'center',
-                  })),
+                  type: 'stack', direction: 'row', children: [
+                    { type: 'spacer' },
+                    { type: 'text', text: bars.hours.map((h, i) => h + '时 ' + bars.counts[i] + '班').join('  ·  '), font: { size: 9 }, textColor: GRAY },
+                    { type: 'spacer' },
+                  ],
                 },
               ],
             },
