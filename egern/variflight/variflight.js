@@ -209,37 +209,73 @@ function tempSvg(low, high) {
 
 function boardData(items, out) {
   items = (items || []).slice();
-  const toMin = (s) => { const m = /(\d{2}):(\d{2})/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : 9999; };
-  const nowMin = toMin(nowHM());
+  const toMin = (s) => { const m = /(\d{2}):(\d{2})/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+  const nowD = new Date();
+  const nowMin = nowD.getHours() * 60 + nowD.getMinutes();
+  const wrap = (d) => { if (d == null) return null; if (d < -720) return d + 1440; if (d > 720) return d - 1440; return d; };
   const dirOf = (it) => (out === 'all' ? (it._dir || '0') : out);
   const planOf = (it) => (dirOf(it) === '1' ? it.arrPlanHour : it.depPlanHour) || '';
   const estOf = (it) => (dirOf(it) === '1' ? it.arrEstHour : it.depEstHour) || '';
+  const actOf = (it) => (dirOf(it) === '1' ? (it.arrActHour || it.arrEstHour || it.arrPlanHour) : (it.depActHour || it.depEstHour || it.depPlanHour)) || '';
   const effOf = (it) => estOf(it) || planOf(it);
-  const upcoming = items
-    .filter((it) => toMin(planOf(it)) >= nowMin || toMin(effOf(it)) >= nowMin)
-    .sort((a, b) => toMin(effOf(a)) - toMin(effOf(b)));
-  const list = upcoming.length ? upcoming : items;
-  return list.map((it, idx) => {
-    const plan = planOf(it);
+  const isDone = (it) => (dirOf(it) === '1' ? /到达/ : /起飞|到达/).test(it.flightStatus || '');
+
+  const enriched = items.map((it) => {
     const eff = effOf(it);
-    const diff = toMin(eff) - nowMin;
-    const isRel = diff >= 0 && diff <= 90;
-    const dm = /^[+-]?\d+$/.test((it.delayData || '').trim()) ? parseInt(it.delayData, 10) : 0;
+    const act = actOf(it);
+    const eMin = toMin(eff);
+    const aMin = toMin(act);
     return {
-      rank: idx + 1,
-      dir: dirOf(it),
-      fno: it.flightNumber || '',
-      code: it.airlineCode || '',
+      it: it, done: isDone(it), eff: eff, act: act, plan: planOf(it),
+      dEff: eMin != null ? wrap(eMin - nowMin) : null,
+      dAct: aMin != null ? wrap(aMin - nowMin) : null,
+    };
+  });
+  const doneList = enriched
+    .filter((e) => e.done && e.dAct != null && e.dAct <= 5 && e.dAct >= -90)
+    .sort((a, b) => b.dAct - a.dAct)
+    .slice(0, 2);
+  const doneSet = new Set(doneList.map((e) => e.it));
+  let upList = enriched
+    .filter((e) => !doneSet.has(e.it) && e.dEff != null && e.dEff >= -30)
+    .sort((a, b) => a.dEff - b.dEff);
+
+  const toRow = (e, rank) => {
+    const it = e.it;
+    const dm = /^[+-]?\d+$/.test((it.delayData || '').trim()) ? parseInt(it.delayData, 10) : 0;
+    let time;
+    let isRel = false;
+    if (e.done) {
+      if (e.dAct != null && e.dAct <= 0 && e.dAct >= -90) { time = e.dAct === 0 ? '刚刚' : (-e.dAct) + '分钟前'; isRel = true; }
+      else time = e.act;
+    } else if (e.dEff != null && e.dEff >= 0 && e.dEff <= 90) {
+      time = e.dEff === 0 ? '现在' : e.dEff + '分钟后';
+      isRel = true;
+    } else {
+      time = e.eff;
+    }
+    return {
+      rank: rank, done: e.done, dir: dirOf(it),
+      fno: it.flightNumber || '', code: it.airlineCode || '',
       place: (dirOf(it) === '1' ? it.departure : it.arrival) || '',
-      time: isRel ? (diff === 0 ? '现在' : diff + '分钟后') : eff,
-      eff: eff,
-      plan: plan,
-      isRel: isRel,
+      time: time, eff: e.eff, plan: e.plan, isRel: isRel,
       status: it.flightStatus || '',
       term: (dirOf(it) === '1' ? it.arrTerminal : it.depTerminal) || '',
       delayMins: dm,
     };
-  });
+  };
+
+  const rows = [];
+  doneList.forEach((e) => rows.push(toRow(e, '')));
+  if (doneList.length) rows.push({ divider: out === '1' ? '以上是已进港航班' : out === '0' ? '以上是已出港航班' : '以上是已起降航班' });
+  upList.forEach((e, i) => rows.push(toRow(e, i + 1)));
+  if (!rows.length) {
+    enriched
+      .sort((a, b) => (a.dEff == null ? 9999 : a.dEff) - (b.dEff == null ? 9999 : b.dEff))
+      .slice(0, 12)
+      .forEach((e, i) => rows.push(toRow(e, i + 1)));
+  }
+  return rows;
 }
 
 function boardBars(items, out) {
@@ -342,6 +378,15 @@ function renderFlight(d, fam) {
 }
 
 function boardRow(it) {
+  if (it.divider) {
+    return {
+      type: 'stack', direction: 'row', children: [
+        { type: 'spacer' },
+        { type: 'text', text: '— ' + it.divider + ' —', font: { size: 9 }, textColor: GRAY },
+        { type: 'spacer' },
+      ],
+    };
+  }
   const sub = [];
   if (it.term) sub.push({ type: 'text', text: it.term, font: { size: 9 }, textColor: GRAY });
   if (it.isRel) {
@@ -445,8 +490,16 @@ export default async function (ctx) {
       if (!rows.length) return fail('暂无航班数据');
       firstLine = rows[0].fno + ' ' + rows[0].status;
       const withChart = fam === 'systemLarge' || fam === 'systemExtraLarge';
-      const max = fam === 'systemSmall' ? 3 : fam === 'systemMedium' ? 4 : fam === 'systemExtraLarge' ? 7 : 5;
-      bodyChildren = rows.slice(0, max).map((it) => boardRow(it));
+      const budget = fam === 'systemSmall' ? 3 : fam === 'systemMedium' ? 4 : fam === 'systemExtraLarge' ? 7 : 5;
+      const picked = [];
+      let flights = 0;
+      for (const r of rows) {
+        if (r.divider) { if (flights < budget) picked.push(r); continue; }
+        if (flights >= budget) break;
+        picked.push(r); flights++;
+      }
+      if (picked.length && picked[picked.length - 1].divider) picked.pop();
+      bodyChildren = picked.map((it) => boardRow(it));
       if (withChart) {
         const bars = boardBars(boardItems, dirEnv);
         if (bars.total > 0) {
