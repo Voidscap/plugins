@@ -5,7 +5,7 @@
 //   MODE       航班动态 | 机场大屏 | 机场天气，默认 航班动态
 //   FLIGHT     航班号（含航司二字码），默认 MU5102
 //   AIRPORT    机场三字码，默认 SHA
-//   DIRECTION  出港 | 进港，默认 出港（机场大屏模式用）
+//   DIRECTION  出港 | 进港 | 全局，默认 出港（机场大屏模式用）
 //   REFRESH    刷新间隔（分钟），默认 10；每次刷新调用一次接口
 
 const ENDPOINT = 'https://c-gw.variflight.com/chat_message/mcp/api/legacy';
@@ -183,21 +183,6 @@ function routeSvg(t) {
     + '</svg>';
 }
 
-function boardBars(data, out) {
-  const items = (data && data.items) || [];
-  const nowH = new Date().getHours();
-  const counts = [0, 0, 0, 0, 0, 0];
-  let total = 0;
-  for (const it of items) {
-    const eff = (out === '1' ? (it.arrEstHour || it.arrPlanHour) : (it.depEstHour || it.depPlanHour)) || '';
-    const m = /(\d{2}):/.exec(eff);
-    if (!m) continue;
-    const idx = (+m[1]) - nowH;
-    if (idx >= 0 && idx < 6) { counts[idx]++; total++; }
-  }
-  return { counts: counts, total: total };
-}
-
 function barsSvg(counts) {
   const bw = 26;
   const gap = (300 - counts.length * bw) / (counts.length + 1);
@@ -223,12 +208,13 @@ function tempSvg(low, high) {
     + "<rect x='" + x1.toFixed(0) + "' y='3' width='" + Math.max(6, x2 - x1).toFixed(0) + "' height='6' rx='3' fill='url(%23g)'/></svg>";
 }
 
-function boardData(data, out) {
-  const items = ((data && data.items) || []).slice();
+function boardData(items, out) {
+  items = (items || []).slice();
   const toMin = (s) => { const m = /(\d{2}):(\d{2})/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : 9999; };
   const nowMin = toMin(nowHM());
-  const planOf = (it) => (out === '1' ? it.arrPlanHour : it.depPlanHour) || '';
-  const estOf = (it) => (out === '1' ? it.arrEstHour : it.depEstHour) || '';
+  const dirOf = (it) => (out === 'all' ? (it._dir || '0') : out);
+  const planOf = (it) => (dirOf(it) === '1' ? it.arrPlanHour : it.depPlanHour) || '';
+  const estOf = (it) => (dirOf(it) === '1' ? it.arrEstHour : it.depEstHour) || '';
   const effOf = (it) => estOf(it) || planOf(it);
   const upcoming = items
     .filter((it) => toMin(planOf(it)) >= nowMin || toMin(effOf(it)) >= nowMin)
@@ -242,18 +228,34 @@ function boardData(data, out) {
     const dm = /^[+-]?\d+$/.test((it.delayData || '').trim()) ? parseInt(it.delayData, 10) : 0;
     return {
       rank: idx + 1,
+      dir: dirOf(it),
       fno: it.flightNumber || '',
       code: it.airlineCode || '',
-      place: (out === '1' ? it.departure : it.arrival) || '',
+      place: (dirOf(it) === '1' ? it.departure : it.arrival) || '',
       time: isRel ? (diff === 0 ? '现在' : diff + '分钟后') : eff,
       eff: eff,
       plan: plan,
       isRel: isRel,
       status: it.flightStatus || '',
-      term: (out === '1' ? it.arrTerminal : it.depTerminal) || '',
+      term: (dirOf(it) === '1' ? it.arrTerminal : it.depTerminal) || '',
       delayMins: dm,
     };
   });
+}
+
+function boardBars(items, out) {
+  const nowH = new Date().getHours();
+  const counts = [0, 0, 0, 0, 0, 0];
+  let total = 0;
+  for (const it of items || []) {
+    const dir = out === 'all' ? (it._dir || '0') : out;
+    const eff = (dir === '1' ? (it.arrEstHour || it.arrPlanHour) : (it.depEstHour || it.depPlanHour)) || '';
+    const m = /(\d{2}):/.exec(eff);
+    if (!m) continue;
+    const idx = (+m[1]) - nowH;
+    if (idx >= 0 && idx < 6) { counts[idx]++; total++; }
+  }
+  return { counts: counts, total: total };
 }
 
 function weatherData(data) {
@@ -337,7 +339,7 @@ function renderFlight(d, fam) {
   return children;
 }
 
-function boardRow(it, out) {
+function boardRow(it) {
   const sub = [];
   if (it.term) sub.push({ type: 'text', text: it.term, font: { size: 9 }, textColor: GRAY });
   if (it.isRel) {
@@ -351,7 +353,7 @@ function boardRow(it, out) {
     type: 'stack', direction: 'row', alignItems: 'center', gap: 5, padding: [6, 8], backgroundColor: CARD, borderRadius: 10,
     children: [
       { type: 'text', text: String(it.rank), font: { size: 11 }, textColor: GRAY, width: 14, textAlign: 'center' },
-      { type: 'image', src: out === '1' ? ARROW_IN : ARROW_OUT, width: 12, height: 12 },
+      { type: 'image', src: it.dir === '1' ? ARROW_IN : ARROW_OUT, width: 12, height: 12 },
       {
         type: 'stack', direction: 'column', gap: 1, width: 70, children: [
           { type: 'text', text: it.fno, font: { size: 13, weight: 'bold' }, maxLines: 1, minScale: 0.7 },
@@ -425,17 +427,26 @@ export default async function (ctx) {
   let bodyChildren;
   try {
     if (mode === '机场大屏') {
-      const out = env.DIRECTION === '进港' ? '1' : '0';
-      title = airport + (out === '1' ? ' 进港' : ' 出港');
-      const rawBoard = parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: out }));
-      const rows = boardData(rawBoard, out);
+      const dirEnv = env.DIRECTION === '进港' ? '1' : env.DIRECTION === '全局' ? 'all' : '0';
+      title = airport + (dirEnv === '1' ? ' 进港' : dirEnv === 'all' ? ' 全局' : ' 出港');
+      let boardItems;
+      if (dirEnv === 'all') {
+        const dOut = parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: '0' }));
+        const dIn = parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: '1' }));
+        boardItems = ((dOut && dOut.items) || []).map((it) => Object.assign({}, it, { _dir: '0' }))
+          .concat(((dIn && dIn.items) || []).map((it) => Object.assign({}, it, { _dir: '1' })));
+      } else {
+        const d = parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: dirEnv }));
+        boardItems = (d && d.items) || [];
+      }
+      const rows = boardData(boardItems, dirEnv);
       if (!rows.length) return fail('暂无航班数据');
       firstLine = rows[0].fno + ' ' + rows[0].status;
       const withChart = fam === 'systemLarge' || fam === 'systemExtraLarge';
       const max = fam === 'systemSmall' ? 3 : fam === 'systemMedium' ? 4 : fam === 'systemExtraLarge' ? 7 : 5;
-      bodyChildren = rows.slice(0, max).map((it) => boardRow(it, out));
+      bodyChildren = rows.slice(0, max).map((it) => boardRow(it));
       if (withChart) {
-        const bars = boardBars(rawBoard, out);
+        const bars = boardBars(boardItems, dirEnv);
         if (bars.total > 0) {
           bodyChildren = [
             {
