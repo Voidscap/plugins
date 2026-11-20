@@ -477,7 +477,7 @@ function boardRow(it) {
   if (it.delayMins > 0) sub.push({ type: 'text', text: '延误 ' + it.delayMins + ' 分', font: { size: 9, weight: 'semibold' }, textColor: ORANGE });
   if (it.delayMins < 0) sub.push({ type: 'text', text: '提前 ' + (-it.delayMins) + ' 分', font: { size: 9, weight: 'semibold' }, textColor: GREEN });
   return {
-    type: 'stack', direction: 'row', alignItems: 'center', gap: 5, padding: [5, 2],
+    type: 'stack', direction: 'row', alignItems: 'center', gap: 5, padding: [5, 8], backgroundColor: CARD, borderRadius: 10,
     children: [
       { type: 'text', text: String(it.rank), font: { size: 10 }, textColor: GRAY, width: 14, textAlign: 'center' },
       { type: 'image', src: it.dir === '1' ? ARROW_IN : ARROW_OUT, width: 12, height: 12 },
@@ -588,16 +588,7 @@ export default async function (ctx) {
         picked.push(r); flights++;
       }
       if (picked.length && picked[picked.length - 1].divider) picked.pop();
-      const rowNodes = [];
-      picked.forEach((r, i) => {
-        if (i > 0 && !r.divider && !picked[i - 1].divider) {
-          rowNodes.push({ type: 'stack', direction: 'row', height: 1, backgroundColor: { light: '#EDEDF0', dark: '#2C2C2E' }, children: [] });
-        }
-        rowNodes.push(boardRow(r));
-      });
-      bodyChildren = (fam === 'accessoryRectangular' || fam === 'accessoryCircular' || fam === 'accessoryInline')
-        ? picked.slice(0, 2).map((it) => boardRow(it))
-        : [{ type: 'stack', direction: 'column', gap: 0, children: rowNodes }];
+      bodyChildren = picked.map((it) => boardRow(it));
       if (withChart) {
         const bars = boardBars(boardItems, dirEnv);
         if (bars.total > 0) {
