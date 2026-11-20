@@ -135,6 +135,7 @@ function flightData(data) {
   const items = (data && data.items) || [];
   if (!items.length) return null;
   const f = items[0];
+  const mins = (s) => { const m = /(\d{2}):(\d{2})/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
   return {
     fnum: f.FlightNo || '',
     state: f.FlightState || '',
@@ -146,12 +147,80 @@ function flightData(data) {
     planA: hhmm(f.FlightArrtimePlanDate),
     actD: hhmm(f.FlightDeptimeDate || f.FlightDeptimeEstDate),
     actA: hhmm(f.FlightArrtimeDate || f.FlightArrtimeEstDate),
+    planDm: mins(f.FlightDeptimePlanDate),
+    planAm: mins(f.FlightArrtimePlanDate),
+    actDm: mins(f.FlightDeptimeDate || f.FlightDeptimeEstDate),
+    actAm: mins(f.FlightArrtimeDate || f.FlightArrtimeEstDate),
     gate: f.BoardGate || '',
     checkin: f.CheckinTable || '',
     baggage: f.BaggageID || '',
     ontime: f.ontimeRate || '',
     avgDelay: f.AvgDelay || '',
   };
+}
+
+function progressOf(d) {
+  const dep = d.actDm != null ? d.actDm : d.planDm;
+  const arr = d.actAm != null ? d.actAm : d.planAm;
+  if (dep == null || arr == null || arr <= dep) return null;
+  if (/到达/.test(d.state)) return 1;
+  const now = new Date();
+  const t = (now.getHours() * 60 + now.getMinutes() - dep) / (arr - dep);
+  return Math.max(0, Math.min(1, t));
+}
+
+function routeSvg(t) {
+  const p0 = [18, 42], c = [150, -14], p2 = [282, 42];
+  const tt = Math.max(0.03, Math.min(0.97, t));
+  const x = (1 - tt) * (1 - tt) * p0[0] + 2 * (1 - tt) * tt * c[0] + tt * tt * p2[0];
+  const y = (1 - tt) * (1 - tt) * p0[1] + 2 * (1 - tt) * tt * c[1] + tt * tt * p2[1];
+  const plane = 'M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z';
+  return "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 54'>"
+    + "<path d='M18 42 Q150 -14 282 42' stroke='%23C7C7CC' stroke-width='2' stroke-dasharray='4 4' fill='none'/>"
+    + "<circle cx='18' cy='42' r='4' fill='%2334C759'/>"
+    + "<circle cx='282' cy='42' r='4' fill='%23FF9500'/>"
+    + "<g transform='translate(" + (x - 9).toFixed(1) + ' ' + (y - 9).toFixed(1) + ") scale(0.75)'><path d='" + plane + "' fill='%230A84FF'/></g>"
+    + '</svg>';
+}
+
+function boardBars(data, out) {
+  const items = (data && data.items) || [];
+  const nowH = new Date().getHours();
+  const counts = [0, 0, 0, 0, 0, 0];
+  let total = 0;
+  for (const it of items) {
+    const eff = (out === '1' ? (it.arrEstHour || it.arrPlanHour) : (it.depEstHour || it.depPlanHour)) || '';
+    const m = /(\d{2}):/.exec(eff);
+    if (!m) continue;
+    const idx = (+m[1]) - nowH;
+    if (idx >= 0 && idx < 6) { counts[idx]++; total++; }
+  }
+  return { counts: counts, total: total };
+}
+
+function barsSvg(counts) {
+  const bw = 26;
+  const gap = (300 - counts.length * bw) / (counts.length + 1);
+  const max = Math.max.apply(null, counts.concat([1]));
+  let rects = '';
+  counts.forEach((n, i) => {
+    const h = Math.max(3, Math.round(n / max * 30));
+    const x = gap + i * (bw + gap);
+    rects += "<rect x='" + x.toFixed(0) + "' y='" + (36 - h) + "' width='" + bw + "' height='" + h + "' rx='4' fill='" + (i === 0 ? '%230A84FF' : '%23AEAEB2') + "'/>";
+  });
+  return "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 40'>"
+    + rects + "<rect x='0' y='37' width='300' height='1.5' fill='%23E5E5EA'/></svg>";
+}
+
+function tempSvg(low, high) {
+  if (low == null || high == null || isNaN(low) || isNaN(high)) return null;
+  const min = -5, max = 40;
+  const x1 = (low - min) / (max - min) * 292;
+  const x2 = (high - min) / (max - min) * 292;
+  return "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 292 12'>"
+    + "<defs><linearGradient id='g' x1='0' x2='1'><stop offset='0' stop-color='%230A84FF'/><stop offset='1' stop-color='%23FF9500'/></linearGradient></defs>"
+    + "<rect x='0' y='3' width='292' height='6' rx='3' fill='%23E5E5EA'/>"
+    + "<rect x='" + x1.toFixed(0) + "' y='3' width='" + Math.max(6, x2 - x1).toFixed(0) + "' height='6' rx='3' fill='url(%23g)'/></svg>";
 }
 
 function boardData(data, out) {
@@ -195,6 +264,8 @@ function weatherData(data) {
   return {
     desc: g.desc || w.wtype || '',
     range: (g.low || '') + '~' + (g.high || ''),
+    lowN: parseInt(g.low, 10),
+    highN: parseInt(g.high, 10),
     liveTemp: w.wtemperature || g.temper || '',
     vis: w.wvisib === '9999' ? '≥10km' : (w.wvisib ? w.wvisib + 'm' : (g.seefar || '')),
     wind: g.wind || '',
@@ -240,6 +311,17 @@ function renderFlight(d, fam) {
   };
   children.push(card);
   if (fam !== 'systemSmall') {
+    const t = progressOf(d);
+    if (t != null) {
+      children.push({ type: 'image', src: routeSvg(t), width: 300, height: 54 });
+      children.push({
+        type: 'stack', direction: 'row', children: [
+          { type: 'spacer' },
+          { type: 'text', text: t >= 1 ? '已到达' : t <= 0 ? '待起飞' : '飞行中 · 已飞约 ' + Math.round(t * 100) + '%', font: { size: 9 }, textColor: GRAY },
+          { type: 'spacer' },
+        ],
+      });
+    }
     children.push({
       type: 'stack', direction: 'row', gap: 6, children: [
         chip('计划', d.planD + ' → ' + d.planA),
@@ -293,20 +375,23 @@ function boardRow(it, out) {
 }
 
 function renderWeather(d) {
+  const cardChildren = [
+    {
+      type: 'stack', direction: 'row', alignItems: 'end', gap: 6, children: [
+        { type: 'text', text: d.desc, font: { size: 20, weight: 'bold' } },
+        { type: 'text', text: d.range, font: { size: 12 }, textColor: GRAY },
+        { type: 'spacer' },
+        { type: 'text', text: d.liveTemp ? d.liveTemp + '℃' : '', font: { size: 20, weight: 'bold' }, textColor: BLUE },
+      ],
+    },
+    { type: 'text', text: '实况温度 · 能见度 ' + d.vis, font: { size: 10 }, textColor: GRAY },
+  ];
+  const bar = tempSvg(d.lowN, d.highN);
+  if (bar) cardChildren.push({ type: 'image', src: bar, width: 292, height: 12 });
   return [
     {
       type: 'stack', direction: 'column', gap: 6, padding: 10, backgroundColor: CARD, borderRadius: 12,
-      children: [
-        {
-          type: 'stack', direction: 'row', alignItems: 'end', gap: 6, children: [
-            { type: 'text', text: d.desc, font: { size: 20, weight: 'bold' } },
-            { type: 'text', text: d.range, font: { size: 12 }, textColor: GRAY },
-            { type: 'spacer' },
-            { type: 'text', text: d.liveTemp ? d.liveTemp + '℃' : '', font: { size: 20, weight: 'bold' }, textColor: BLUE },
-          ],
-        },
-        { type: 'text', text: '实况温度 · 能见度 ' + d.vis, font: { size: 10 }, textColor: GRAY },
-      ],
+      children: cardChildren,
     },
     {
       type: 'stack', direction: 'row', gap: 6, children: [
@@ -342,11 +427,33 @@ export default async function (ctx) {
     if (mode === '机场大屏') {
       const out = env.DIRECTION === '进港' ? '1' : '0';
       title = airport + (out === '1' ? ' 进港' : ' 出港');
-      const rows = boardData(parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: out })), out);
+      const rawBoard = parseData(await callTool(ctx, key, 'getAirportFlightBoard', { local: airport, out: out }));
+      const rows = boardData(rawBoard, out);
       if (!rows.length) return fail('暂无航班数据');
       firstLine = rows[0].fno + ' ' + rows[0].status;
-      const max = fam === 'systemSmall' ? 3 : fam === 'systemMedium' ? 4 : fam === 'systemExtraLarge' ? 9 : 7;
+      const withChart = fam === 'systemLarge' || fam === 'systemExtraLarge';
+      const max = fam === 'systemSmall' ? 3 : fam === 'systemMedium' ? 4 : fam === 'systemExtraLarge' ? 7 : 5;
       bodyChildren = rows.slice(0, max).map((it) => boardRow(it, out));
+      if (withChart) {
+        const bars = boardBars(rawBoard, out);
+        if (bars.total > 0) {
+          bodyChildren = [
+            {
+              type: 'stack', direction: 'column', gap: 2, padding: [6, 8], backgroundColor: CARD, borderRadius: 10,
+              children: [
+                {
+                  type: 'stack', direction: 'row', children: [
+                    { type: 'text', text: '未来 6 小时航班分布', font: { size: 9 }, textColor: GRAY },
+                    { type: 'spacer' },
+                    { type: 'text', text: '共 ' + bars.total + ' 班', font: { size: 9 }, textColor: GRAY },
+                  ],
+                },
+                { type: 'image', src: barsSvg(bars.counts), width: 300, height: 40 },
+              ],
+            },
+          ].concat(bodyChildren);
+        }
+      }
     } else if (mode === '机场天气') {
       title = airport + ' 机场天气';
       const d = weatherData(parseData(await callTool(ctx, key, 'getAirportWeatherBriefing', { airportCode: airport })));
